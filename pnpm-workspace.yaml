@@ -1,0 +1,4 @@
+allowBuilds:
+  '@swc/core': true
+minimumReleaseAgeExclude:
+  - '@midnight-ntwrk/ledger-v8@8.1.2'
