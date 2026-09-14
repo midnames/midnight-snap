@@ -1,0 +1,113 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Midnight Snap test</title>
+<style>
+  body { font: 14px/1.6 system-ui, sans-serif; margin: 2rem; max-width: 46rem; }
+  button { margin: 0 .4rem .4rem 0; padding: .45rem .7rem; }
+  pre { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; word-break: break-all; }
+  h2 { font-size: 1rem; margin: 1.2rem 0 .4rem; }
+</style>
+<h1>Midnight Snap</h1>
+<p>Needs MetaMask Flask and <code>pnpm serve</code> on 8093. Serve this file over http
+  (<code>python3 -m http.server 8000</code>) — a module import will not load from <code>file://</code>.</p>
+
+<h2>connector (window.midnight entry for the snap)</h2>
+<button id="connect">connect</button>
+<button id="reinstall">reinstall snap (dev rebuild)</button>
+<button id="status">getConnectionStatus</button>
+<button id="config">getConfiguration</button>
+<button id="unshielded">getUnshieldedAddress</button>
+<button id="shielded">getShieldedAddresses</button>
+<button id="dustAddr">getDustAddress</button>
+<button id="balances">getUnshieldedBalances</button>
+<button id="dust">getDustBalance</button>
+<button id="history">getTxHistory</button>
+<button id="sign">signData(deadbeef)</button>
+
+<h2>snap RPC (no connector)</h2>
+<button id="ping">ping</button>
+<button id="accounts">midnight_getAccounts</button>
+<button id="sync">midnight_sync</button>
+<button id="diag">midnight_diag</button>
+<button id="trace">midnight_trace</button>
+<button id="syncopts">midnight_getSyncOptions</button>
+<button id="registerDust">midnight_registerDust</button>
+
+<h2>network &amp; connected sites</h2>
+<button id="getNetwork">midnight_getNetwork</button>
+<button id="toStagenet">switch to stagenet</button>
+<button id="toUndeployed">switch to undeployed</button>
+<button id="sites">midnight_getSites</button>
+<button id="revoke">revoke this origin</button>
+
+<pre id="out">loading connector…</pre>
+
+<script type="module">
+  import { registerMidnightSnap } from './connector/dist/index.js';
+
+  const SNAP_ID = 'local:http://localhost:8093';
+  // The spec installs wallets under a random UUID key, so keep the API the package hands back.
+  const snapApi = registerMidnightSnap({ snapId: SNAP_ID });
+
+  const $ = (id) => document.getElementById(id);
+  const out = $('out');
+  const show = (v) => {
+    out.textContent =
+      typeof v === 'string' ? v : JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? `${x}n` : x), 2);
+  };
+  const run = (fn) => async () => {
+    show('…');
+    try {
+      show(await fn());
+    } catch (e) {
+      show(`ERROR ${e.code ?? ''} ${e.reason ?? e.message ?? e}`);
+    }
+  };
+
+  let api = null;
+  const wallet = () => snapApi;
+  const need = () => {
+    if (!api) throw new Error('press connect first');
+    return api;
+  };
+
+  $('connect').onclick = run(async () => {
+    // Install first if needed: invoking a snap this origin has no permission for fails with 4100,
+    // but every wallet_requestSnaps is a MetaMask popup, so skip it once installed. Then ask which
+    // network the snap is on rather than guessing, since connect() refuses a mismatch.
+    const installed = await ethereum.request({ method: 'wallet_getSnaps' });
+    if (!installed[SNAP_ID]) await ethereum.request({ method: 'wallet_requestSnaps', params: { [SNAP_ID]: {} } });
+    const { networkId } = await invoke('midnight_getNetwork');
+    api = await wallet().connect(networkId);
+    return { connected: networkId, methods: Object.keys(api).length };
+  });
+  // Explicit, because connect no longer re-requests: this is how a rebuilt local bundle gets picked up.
+  $('reinstall').onclick = run(() => ethereum.request({ method: 'wallet_requestSnaps', params: { [SNAP_ID]: {} } }));
+  $('status').onclick = run(() => need().getConnectionStatus());
+  $('config').onclick = run(() => need().getConfiguration());
+  $('unshielded').onclick = run(() => need().getUnshieldedAddress());
+  $('shielded').onclick = run(() => need().getShieldedAddresses());
+  $('dustAddr').onclick = run(() => need().getDustAddress());
+  $('balances').onclick = run(() => need().getUnshieldedBalances());
+  $('dust').onclick = run(() => need().getDustBalance());
+  $('history').onclick = run(() => need().getTxHistory(0, 10));
+  $('sign').onclick = run(() => need().signData('deadbeef', { encoding: 'hex', keyType: 'unshielded' }));
+
+  const invoke = (method, params) =>
+    ethereum.request({ method: 'wallet_invokeSnap', params: { snapId: SNAP_ID, request: { method, params } } });
+  $('ping').onclick = run(() => invoke('ping'));
+  $('accounts').onclick = run(() => invoke('midnight_getAccounts'));
+  $('sync').onclick = run(() => invoke('midnight_sync'));
+  $('diag').onclick = run(() => invoke('midnight_diag'));
+  $('trace').onclick = run(() => invoke('midnight_trace'));
+  $('syncopts').onclick = run(() => invoke('midnight_getSyncOptions'));
+  $('registerDust').onclick = run(() => invoke('midnight_registerDust'));
+
+  $('getNetwork').onclick = run(() => invoke('midnight_getNetwork'));
+  $('toStagenet').onclick = run(() => invoke('midnight_setNetwork', { networkId: 'stagenet' }));
+  $('toUndeployed').onclick = run(() => invoke('midnight_setNetwork', { networkId: 'undeployed' }));
+  $('sites').onclick = run(() => invoke('midnight_getSites'));
+  $('revoke').onclick = run(() => invoke('midnight_revokeSite', { origin: location.origin }));
+
+  show(`ready — window.midnight: ${Object.keys(window.midnight).join(', ')}`);
+</script>

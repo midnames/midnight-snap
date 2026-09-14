@@ -1,0 +1,39 @@
+{
+  "name": "@midnames/midnight-snap-connector",
+  "version": "0.1.0",
+  "description": "Registers the Midnight Snap in window.midnight, implementing @midnight-ntwrk/dapp-connector-api 4.0.1.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/midnames/midnight-snap.git",
+    "directory": "connector"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./auto": "./dist/auto.js"
+  },
+  "sideEffects": [
+    "./dist/auto.js"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "test": "node --test test.mjs",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/dapp-connector-api": "4.0.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2"
+  }
+}

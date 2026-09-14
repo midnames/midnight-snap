@@ -1,4 +1,8 @@
+packages:
+  - connector
+# One ledger wasm in the bundle: the wallet-sdk betas pull slightly different rc's.
+overrides:
+  '@midnightntwrk/ledger-v9': 1.0.0-rc.3
 allowBuilds:
   '@swc/core': true
-minimumReleaseAgeExclude:
-  - '@midnight-ntwrk/ledger-v8@8.1.2'
+  msgpackr-extract: true

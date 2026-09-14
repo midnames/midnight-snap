@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Midnight Snap Bridge",
+  "version": "0.2.0",
+  "description": "Lists the Midnight Snap in window.midnight on every page (dapp-connector-api 4.0.1).",
+  "content_scripts": [{ "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_start" }],
+  "web_accessible_resources": [{ "resources": ["auto.js", "index.js"], "matches": ["<all_urls>"] }]
+}

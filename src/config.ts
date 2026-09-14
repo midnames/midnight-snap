@@ -1,0 +1,59 @@
+import type { Json } from "@metamask/snaps-sdk";
+
+const NETWORKS = {
+  stagenet: {
+    networkId: "stagenet",
+    indexerHttpUrl: "https://indexer.stagenet.shielded.tools/api/v4/graphql",
+    indexerWsUrl: "wss://indexer.stagenet.shielded.tools/api/v4/graphql/ws",
+    nodeWsUrl: "wss://rpc.stagenet.shielded.tools",
+    feeBlocksMargin: 100,
+  },
+  undeployed: {
+    networkId: "undeployed",
+    indexerHttpUrl: "http://127.0.0.1:8088/api/v4/graphql",
+    indexerWsUrl: "ws://127.0.0.1:8088/api/v4/graphql/ws",
+    nodeWsUrl: "ws://127.0.0.1:9944",
+    feeBlocksMargin: 100,
+  },
+} as const;
+
+export type NetworkId = keyof typeof NETWORKS;
+export type Network = (typeof NETWORKS)[NetworkId];
+export const NETWORK_IDS = Object.keys(NETWORKS) as NetworkId[];
+export const isNetworkId = (v: unknown): v is NetworkId => typeof v === "string" && Object.hasOwn(NETWORKS, v);
+
+// Default network. Set it with `SNAP_NETWORK=undeployed pnpm build`. The network in snap state has priority.
+declare const SNAP_NETWORK: string | undefined;
+const BUILD_DEFAULT: NetworkId = typeof SNAP_NETWORK === "string" && isNetworkId(SNAP_NETWORK) ? SNAP_NETWORK : "stagenet";
+
+/** Snap state at a Lodash-style key path (`a.b`). Keys that contain dots, such as origins, are not paths. */
+export const getState = async <T>(key: string): Promise<T | undefined> =>
+  ((await snap.request({ method: "snap_getState", params: { key } })) ?? undefined) as T | undefined;
+
+export const setState = (key: string, value: unknown) =>
+  snap.request({ method: "snap_setState", params: { key, value: value as Json } });
+
+/** The active network. Each entry handler must call `loadNetwork` first: a new executor starts with the build default. */
+export let NETWORK: Network = NETWORKS[BUILD_DEFAULT];
+
+export async function loadNetwork(): Promise<Network> {
+  const id = await getState("settings.networkId");
+  NETWORK = NETWORKS[isNetworkId(id) ? id : BUILD_DEFAULT];
+  return NETWORK;
+}
+
+export async function setNetwork(id: string): Promise<Network> {
+  if (!isNetworkId(id)) throw new Error(`unknown network "${id}"; expected one of ${NETWORK_IDS.join(", ")}`);
+  await setState("settings.networkId", id);
+  NETWORK = NETWORKS[id];
+  return NETWORK;
+}
+
+/** Proving keys and SRS. A copy of Midnight's S3 bucket with the same paths. S3 sends no CORS headers, so the snap cannot use it. */
+export const PROVING_PARAMS_URL = "https://assets.midnames.com";
+
+/** Proof server for `provingStrategy: "server"`. */
+export const DEFAULT_PROVING_SERVER_URL = "http://localhost:6300";
+
+/** Time for one request. `endowment:rpc.maxRequestTime` is 180 s, the platform maximum. Keep 15 s to save state. */
+export const REQUEST_BUDGET_MS = 165_000;

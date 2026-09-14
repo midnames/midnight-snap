@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022", "module": "ESNext", "moduleResolution": "bundler",
-    "strict": true, "esModuleInterop": true, "skipLibCheck": true, "noEmit": true,
+    "strict": true, "esModuleInterop": true, "skipLibCheck": true, "noEmit": true, "allowImportingTsExtensions": true,
     "types": ["@metamask/snaps-sdk"]
   },
   "include": ["src"], "exclude": ["src/**/*.test.ts"]

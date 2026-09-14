@@ -1,19 +1,25 @@
 {
-  "version": "0.1.1",
-  "description": "Midnight wallet keys inside MetaMask (experiment)",
+  "version": "0.9.0",
+  "description": "Midnight wallet inside MetaMask: keys, sync, transfers, dApp connector",
   "proposedName": "Midnight Snap",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/midnames/midnight-snap.git"
+  },
   "source": {
-    "shasum": "0q0DmMt2n4mgJB2C5vyM85APZq9Ps+ChWWJ0DNjBpb0=",
+    "shasum": "Dtsv1YxMybw+dhX+FS4pvQaRmrzMib+Rjuz2ZEh/d+s=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",
-        "packageName": "midnight-snap",
+        "packageName": "@midnames/midnight-snap",
         "registry": "https://registry.npmjs.org/"
       }
     }
   },
   "initialPermissions": {
     "snap_dialog": {},
+    "snap_manageState": {},
+    "snap_notify": {},
     "snap_getBip32Entropy": [
       {
         "path": ["m", "44'", "2400'"],
@@ -22,10 +28,23 @@
     ],
     "endowment:rpc": {
       "dapps": true,
-      "snaps": false
+      "snaps": false,
+      "maxRequestTime": 180000
     },
-    "endowment:webassembly": {}
+    "endowment:network-access": {},
+    "endowment:webassembly": {},
+    "endowment:cronjob": {
+      "jobs": [
+        {
+          "expression": "*/5 * * * *",
+          "request": {
+            "method": "backgroundSync"
+          }
+        }
+      ]
+    },
+    "endowment:page-home": {}
   },
-  "platformVersion": "12.0.1",
+  "platformVersion": "12.0.0",
   "manifestVersion": "0.1"
 }
