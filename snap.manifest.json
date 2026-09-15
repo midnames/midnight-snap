@@ -7,7 +7,7 @@
     "url": "git+https://github.com/midnames/midnight-snap.git"
   },
   "source": {
-    "shasum": "Dtsv1YxMybw+dhX+FS4pvQaRmrzMib+Rjuz2ZEh/d+s=",
+    "shasum": "fvU3X/VLKTwRcH4wprBI8yJ9j5Ajs6FE431C1DgVgLE=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",

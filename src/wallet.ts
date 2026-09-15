@@ -264,17 +264,27 @@ export const confirm = (title: string, rows: Array<[string, string]>) =>
 export const secretKeys = (keys: Keys) => ({ shieldedSecretKeys: keys.shieldedSecretKeys, dustSecretKey: keys.dustSecretKey });
 export const ttl = () => new Date(Date.now() + 60 * 60_000);
 
-/** Sign and prove, then validate. Does not submit. */
+/**
+ * Sign and prove, then validate. Does not submit.
+ * On failure, release the coins that the recipe booked. The session saves state also after an error, and the
+ * SDK releases a booked coin only on revert or when its spend is on chain, so the coins would stay booked.
+ */
 export async function finalize({ facade, keys }: Session, recipe: BalancingRecipe) {
-  const signed = await facade.signRecipe(recipe, keys.unshieldedKeystore.signDataAsync);
-  await trace("signed");
-  const tx = await facade.finalizeRecipe(signed);
-  await trace("proved");
-  await facade.validateTransaction(tx, {
-    flags: { enforceBalancing: true, verifySignatures: true, enforceLimits: true },
-    ...((recipe as any).blockData ? { blockData: (recipe as any).blockData } : {}),
-  } as any);
-  return tx;
+  try {
+    const signed = await facade.signRecipe(recipe, keys.unshieldedKeystore.signDataAsync);
+    await trace("signed");
+    const tx = await facade.finalizeRecipe(signed);
+    await trace("proved");
+    await facade.validateTransaction(tx, {
+      flags: { enforceBalancing: true, verifySignatures: true, enforceLimits: true },
+      ...((recipe as any).blockData ? { blockData: (recipe as any).blockData } : {}),
+    } as any);
+    return tx;
+  } catch (e) {
+    await trace(`finalize failed, coins released: ${String((e as Error)?.message ?? e)}`);
+    await facade.revert(recipe).catch(() => undefined);
+    throw e;
+  }
 }
 
 /** `MidnightBech32m.parse` has a 90-character limit, and shielded addresses are longer. */
@@ -400,7 +410,11 @@ export async function transfer(p: TransferParams) {
       throw new Error("user rejected");
     }
     await trace("confirmed by user");
-    const txId = await s.facade.submitTransaction(await finalize(s, recipe));
+    const tx = await finalize(s, recipe);
+    const txId = await s.facade.submitTransaction(tx).catch(async (e) => {
+      await s.facade.revertTransaction(tx).catch(() => undefined); // Release the booked coins, as the connector's submit does.
+      throw e;
+    });
     await trace(`submitted ${txId}`);
     return { txId, fee: fee.toString(), elapsedMs: Date.now() - t0 };
   });

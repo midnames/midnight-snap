@@ -3,7 +3,7 @@
 # Paths come from KEY_PATHS and getParams in src/proving/browserProving.ts.
 #
 #   scripts/mirror-proving-params.sh                                 # keys and SRS k=13,14,15 (29 MB)
-#   SRS_K="8 9 10 11 12 13 14 15 16 17" scripts/mirror-proving-params.sh
+#   SRS_K="$(seq -s ' ' 0 17)" scripts/mirror-proving-params.sh      # the full mirror; small dApp circuits need k < 8
 #   node scripts/serve-params.mjs 8099                               # serve params/ with CORS headers
 set -euo pipefail
 SRC="${SRC:-https://midnight-s3-fileshare-dev-eu-west-1.s3.eu-west-1.amazonaws.com}"
