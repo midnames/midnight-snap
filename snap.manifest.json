@@ -3,7 +3,7 @@
   "description": "Midnight wallet keys inside MetaMask (experiment)",
   "proposedName": "Midnight Snap",
   "source": {
-    "shasum": "0q0DmMt2n4mgJB2C5vyM85APZq9Ps+ChWWJ0DNjBpb0=",
+    "shasum": "nwnhpgNRo4Yo3g9sGr1+hwFWsP2/62mF/LOGmizNhgw=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",

@@ -4,7 +4,10 @@ import { Roles } from "@midnightntwrk/wallet-sdk-hd";
 import { HDKey } from "@scure/bip32";
 import * as ledger from "@midnight-ntwrk/ledger-v8";
 import {
-  MidnightBech32m, ShieldedAddress, ShieldedCoinPublicKey, ShieldedEncryptionPublicKey,
+  MidnightBech32m,
+  ShieldedAddress,
+  ShieldedCoinPublicKey,
+  ShieldedEncryptionPublicKey,
   UnshieldedAddress,
 } from "@midnightntwrk/wallet-sdk-address-format";
 
@@ -34,7 +37,12 @@ async function signData(hex: string) {
   const sk = await deriveNightKey();
   const ok = await snap.request({
     method: "snap_dialog",
-    params: { type: "confirmation", content: Text({ children: `Sign ${hex.length / 2} bytes with your Midnight unshielded key?` }) },
+    params: {
+      type: "confirmation",
+      content: Text({
+        children: `Sign ${hex.length / 2} bytes with your Midnight unshielded key?`,
+      }),
+    },
   });
   if (!ok) throw new Error("user rejected");
   const signature = ledger.signData(sk, Buffer.from(hex, "hex"));
@@ -42,14 +50,17 @@ async function signData(hex: string) {
 }
 
 async function getAddresses() {
-
   const zswap = ledger.ZswapSecretKeys.fromSeed(await deriveRole(Roles.Zswap));
   const shielded = new ShieldedAddress(
     new ShieldedCoinPublicKey(Buffer.from(zswap.coinPublicKey, "hex")),
-    new ShieldedEncryptionPublicKey(Buffer.from(zswap.encryptionPublicKey, "hex")),
+    new ShieldedEncryptionPublicKey(
+      Buffer.from(zswap.encryptionPublicKey, "hex"),
+    ),
   );
   const nightKey = await deriveRole(Roles.NightExternal);
-  const unshieldedPk = ledger.signatureVerifyingKey(Buffer.from(nightKey).toString("hex"));
+  const unshieldedPk = ledger.signatureVerifyingKey(
+    Buffer.from(nightKey).toString("hex"),
+  );
   const unshielded = new UnshieldedAddress(Buffer.from(unshieldedPk, "hex"));
   const dust = ledger.DustSecretKey.fromSeed(await deriveRole(Roles.Dust));
 
@@ -62,9 +73,13 @@ async function getAddresses() {
 
 export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
   switch (request.method) {
-    case "ping": return { ok: true, ts: Date.now() };
-    case "midnight_getAccounts": return getAddresses();
-    case "midnight_signData": return signData((request.params as { hex: string }).hex);
-    default: throw new Error(`Method not found: ${request.method}`);
+    case "ping":
+      return { ok: true, ts: Date.now() };
+    case "midnight_getAccounts":
+      return getAddresses();
+    case "midnight_signData":
+      return signData((request.params as { hex: string }).hex);
+    default:
+      throw new Error(`Method not found: ${request.method}`);
   }
 };
