@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Counter · Midnight Snap</title>
+  <style>
+    body { font: 15px system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+    button { font: inherit; padding: 6px 14px; margin: 4px 4px 4px 0; }
+    input { font: inherit; width: 100%; box-sizing: border-box; padding: 6px; }
+    #count { font-size: 48px; font-weight: 600; }
+    pre { background: #f4f4f4; padding: 12px; white-space: pre-wrap; word-break: break-all; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Counter</h1>
+  <p>A Compact contract called through the Midnight MetaMask Snap on stagenet.</p>
+  <button id="connect">Connect</button>
+  <p><label>Contract address <input id="address" placeholder="Deploy, or paste an address" /></label></p>
+  <button id="deploy" disabled>Deploy</button>
+  <button id="increment" disabled>Increment</button>
+  <button id="refresh" disabled>Refresh</button>
+  <div id="count">–</div>
+  <pre id="log"></pre>
+  <script type="module" src="/main.ts"></script>
+</body>
+</html>

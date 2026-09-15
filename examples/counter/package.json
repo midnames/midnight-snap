@@ -1,0 +1,25 @@
+{
+  "name": "midnight-snap-counter-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "compact compile +0.33.0-rc.2 contract/Counter.compact managed",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-js": "2.5.5-rc.6",
+    "@midnight-ntwrk/compact-runtime": "0.18.0-rc.1",
+    "@midnight-ntwrk/midnight-js-contracts": "5.0.0-beta.4",
+    "@midnight-ntwrk/midnight-js-dapp-connector-proof-provider": "5.0.0-beta.4",
+    "@midnight-ntwrk/midnight-js-fetch-zk-config-provider": "5.0.0-beta.4",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "5.0.0-beta.4",
+    "@midnight-ntwrk/midnight-js-network-id": "5.0.0-beta.4",
+    "@midnight-ntwrk/midnight-js-types": "5.0.0-beta.4",
+    "@midnightntwrk/ledger-v9": "1.0.0-rc.3",
+    "@midnightntwrk/onchain-runtime-v4": "4.0.0-rc.3"
+  },
+  "devDependencies": {
+    "vite": "7.3.2",
+    "vite-plugin-wasm": "3.6.0"
+  }
+}
