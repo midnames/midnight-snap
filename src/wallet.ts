@@ -15,6 +15,7 @@ import {
 } from "@midnightntwrk/wallet-sdk-address-format";
 import { bech32m, hex } from "@scure/base";
 import { FastSyncDustWallet } from "./fastsync/dustWallet";
+import { isName, loadMidns } from "./midns";
 import { FastSyncShieldedWallet } from "./fastsync/shieldedWallet";
 import { recordSyncOrigin, type WalletSyncOrigin } from "./fastsync/syncOrigin";
 import type { DustCatchUpAnchor } from "./fastsync/dustCatchUp";
@@ -368,7 +369,7 @@ export function summarize({ shielded, unshielded, dust, isSynced }: FacadeState,
 }
 
 /** What the home page shows, in snap state at `homes.<networkId>`. */
-export type HomeSummary = { at: number; synced: boolean; unshielded: string; shielded: string; dust: string };
+export type HomeSummary = { at: number; synced: boolean; unshielded: string; shielded: string; dust: string; names?: string[] };
 
 // ---- operations ----
 
@@ -392,6 +393,7 @@ async function syncOnce() {
           shielded: sum(Object.values(state.shielded.balances)).toString(),
           unshielded: sum(Object.values(state.unshielded.balances)).toString(),
           dust: summary.dust.spendable,
+          names: await namesOf(keys, network),
         };
         await setState(`homes.${network.networkId}`, home).catch(() => undefined);
         return { ...summary, elapsedMs: Date.now() - t0 };
@@ -403,6 +405,18 @@ async function syncOnce() {
   }
 }
 
+/** MidNS names that point to or are owned by this account. The home page shows them. Undefined if the lookup fails. */
+async function namesOf(keys: Keys, network: Network) {
+  if (!network.midns) return undefined;
+  try {
+    return (await loadMidns(network)).namesFor([keys.unshieldedKeystore.getAddress(), keys.shieldedSecretKeys.coinPublicKey]);
+  } catch (e) {
+    await trace(`names lookup failed: ${String((e as Error)?.message ?? e)}`);
+    return undefined;
+  }
+}
+
+/** `to` is an address, or a MidNS name such as `alice.night`. */
 export type TransferParams = { type: "shielded" | "unshielded"; to: string; amount: string; token?: string };
 
 export async function transfer(p: TransferParams) {
@@ -411,9 +425,18 @@ export async function transfer(p: TransferParams) {
   if (amount <= 0n) throw new Error("amount must be > 0");
   const native = ledger.nativeToken().raw;
   const token = p.token ?? native;
-  const receiverAddress = parseRecipient(p.type, p.to);
+  // Resolve a name before the wallet opens: a name that does not resolve must not cost a sync.
+  const name = isName(String(p.to).trim().toLowerCase()) ? String(p.to).trim().toLowerCase() : undefined;
+  let to = p.to;
+  if (name) {
+    const record = (await loadMidns(NETWORK)).resolve(name);
+    const resolved = p.type === "shielded" ? record.shielded : record.unshielded;
+    if (!resolved) throw new Error(`${name} has no ${p.type} address (its target is a ${record.target.kind} ${record.target.kind === "contract" ? "address" : "key"})`);
+    to = resolved;
+  }
+  const receiverAddress = parseRecipient(p.type, to);
   const t0 = Date.now();
-  await trace(`transfer start ${p.type} ${amount} -> ${p.to.slice(0, 24)}`);
+  await trace(`transfer start ${p.type} ${amount} -> ${(name ?? to).slice(0, 24)}`);
 
   return withWallet(REQUEST_BUDGET_MS - 90_000, async (s) => {
     const recipe = await s.facade.transferTransaction(
@@ -425,7 +448,7 @@ export async function transfer(p: TransferParams) {
     const fee = await s.facade.calculateTransactionFee(recipe.transaction);
     const ok = await confirm(`Send on Midnight ${s.network.networkId}`, [
       ["Kind", p.type],
-      ["To", p.to],
+      ...(name ? ([["To", name], ["Address", to]] as Array<[string, string]>) : ([["To", to]] as Array<[string, string]>)),
       ["Amount", `${amount} (${token === native ? "NIGHT atomic units" : token})`],
       ["Fee", `${fee} Specks (DUST)`],
     ]);
@@ -440,7 +463,7 @@ export async function transfer(p: TransferParams) {
       throw e;
     });
     await trace(`submitted ${txId}`);
-    return { txId, fee: fee.toString(), elapsedMs: Date.now() - t0 };
+    return { txId, to, fee: fee.toString(), elapsedMs: Date.now() - t0 };
   });
 }
 

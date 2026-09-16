@@ -8,6 +8,7 @@ A Midnight wallet that runs in MetaMask as a Snap. The snap does these operation
 - It registers NIGHT for DUST generation.
 - It sends shielded and unshielded transfers. It makes the proofs in MetaMask or on a proof server.
 - It implements the dApp Connector API 4.0.1 (`@midnight-ntwrk/dapp-connector-api`).
+- It resolves Midnames (MidNS) names such as `alice.night`, and it sends to them.
 
 The snap supports `stagenet` and a local Midnight network (`undeployed`). It uses
 `snap_getBip32Entropy`, so MetaMask stable accepts it only after an allowlist review and an audit.
@@ -20,6 +21,7 @@ Until then, use MetaMask Flask.
 | `src/` | The snap. |
 | `src/fastsync/` | Fast sync. Refer to [src/fastsync/README.md](src/fastsync/README.md). |
 | `src/proving/` | Proving in MetaMask. Refer to [src/proving/README.md](src/proving/README.md). |
+| `src/midns/` | The MidNS contract source and its bindings. Refer to [Names](#names-midns). |
 | `connector/` | `@midnames/midnight-snap-connector`, the package for dApps. Refer to [connector/README.md](connector/README.md). |
 | `bridge-extension/` | A Chrome extension that adds the connector to all pages, for tests with dApps that you cannot change. |
 | `scripts/` | Proving params mirror, fast sync check, proving benchmark. |
@@ -53,10 +55,10 @@ After a rebuild, click **reinstall snap**. The connector does not reinstall a sn
 
 Open the snap in MetaMask to see its home page. The home page has:
 
-- The balances and the time of the last sync.
+- The balances, the time of the last sync, and the MidNS names of the account.
 - The unshielded address, the shielded address and the DUST public key.
 - **Sync now** and **Register NIGHT for DUST**.
-- A **Send** form.
+- A **Send** form. The recipient can be an address or a MidNS name.
 - The sites that are connected on the active network, each with **Revoke**.
 - The network selector and the **Fast shielded sync** switch.
 - The **Proving** settings.
@@ -67,14 +69,37 @@ page 60 s for each event, and a sync can take longer. The buttons start the netw
 
 ## Networks
 
-| Network | Indexer | Node |
-|---|---|---|
-| `stagenet` | `indexer.stagenet.shielded.tools` | `rpc.stagenet.shielded.tools` |
-| `undeployed` | `127.0.0.1:8088` | `127.0.0.1:9944` |
+| Network | Indexer | Node | MidNS contract |
+|---|---|---|---|
+| `stagenet` | `indexer.stagenet.shielded.tools` | `rpc.stagenet.shielded.tools` | `7aae593f…a068bd` |
+| `undeployed` | `127.0.0.1:8088` | `127.0.0.1:9944` | none |
 
 `SNAP_NETWORK` sets the default network at build time. To change the network, use the home page or
 `midnight_setNetwork`. The user must confirm the change. The snap keeps wallet state, the home page
 summary and dApp connections separately for each network.
+
+## Names (MidNS)
+
+MidNS is the Midnames name service. Its contract maps names such as `alice.night` to a target and to text fields.
+`src/midns.ts` reads the contract state from the indexer and decodes it with the bindings in `src/midns/contract/`.
+
+- **Name to address.** `midnight_transfer` and the home page **Send** form accept a name as the recipient. The snap
+  resolves the name before it opens the wallet, and the confirmation shows the name and the address.
+  - An unshielded transfer goes to the target, if the target is an unshielded address.
+  - A shielded transfer goes to the target coin public key and the encryption key in the `epk` field.
+  - Other names fail with an error.
+- **Address to names.** Each sync finds the names whose target or owner is this account, and the home page shows them.
+  The contract has no index by address, so the snap reads all names.
+
+The `@midnames/sdk` contracts are for ledger 8. The snap uses ledger 9, so it uses its own deployment on stagenet. That deployment is for tests: its root domain secret is public, and anyone can
+manage names under `night`. The `snap.night` name points to a test wallet.
+
+`src/midns/ns.compact` is `ns.compact` from `@midnames/sdk` 2.0.2, with `pragma language_version >= 0.22`. To make
+the bindings again:
+
+```sh
+compact compile +0.34.0 --skip-zk src/midns/ns.compact src/midns
+```
 
 ## Sync
 
@@ -137,7 +162,8 @@ also before `npm publish`) answers "Method not found". They answer only pages on
 | `ping` | | no |
 | `midnight_getAccounts` | | no |
 | `midnight_sync` | | no |
-| `midnight_transfer` | `{ type: "shielded" \| "unshielded", to, amount, token? }` | yes |
+| `midnight_transfer` | `{ type: "shielded" \| "unshielded", to, amount, token? }`; `to` can be a name | yes |
+| `midnight_resolveName` | `{ name }` | no |
 | `midnight_registerDust` | | yes |
 | `midnight_signData` | `{ hex }` | yes |
 | `midnight_getNetwork` | | no |
@@ -156,7 +182,7 @@ also before `npm publish`) answers "Method not found". They answer only pages on
 | Key | Contents |
 |---|---|
 | `wallets.<networkId>` | Serialized wallets, dust anchor, transaction history. |
-| `homes.<networkId>` | The balances that the home page shows. |
+| `homes.<networkId>` | The balances and the MidNS names that the home page shows. |
 | `syncOrigins.<networkId>` | The origin from `midnight_recordSyncOrigin`. |
 | `settings` | `networkId` and the sync options that the user set. |
 | `origins` | Connected sites: origin to network id. |
@@ -172,4 +198,4 @@ also before `npm publish`) answers "Method not found". They answer only pages on
   MetaMask allows one socket for each URL, so the shim adds a `mmws` query parameter to each URL.
 - The `effect` package has methods with the name `eval`, and SES refuses the bundle.
   `snap.config.ts` renames them after minification.
-- The bundle is approximately 27 MB, because it includes the ledger, zkir-v2 and zkir-v3 WebAssembly.
+- The bundle is approximately 29 MB, because it includes the ledger, onchain-runtime, zkir-v2 and zkir-v3 WebAssembly.

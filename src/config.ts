@@ -7,6 +7,8 @@ const NETWORKS = {
     indexerWsUrl: "wss://indexer.stagenet.shielded.tools/api/v4/graphql/ws",
     nodeWsUrl: "wss://rpc.stagenet.shielded.tools",
     feeBlocksMargin: 100,
+    /** MidNS contract (tld "night"). A test instance: its root domain secret is public, so anyone can manage names. */
+    midns: "7aae593f1aa95aff7b67bd61ff86dc157e3c2d23be45559d0ff767e65ba068bd",
   },
   undeployed: {
     networkId: "undeployed",
@@ -14,6 +16,7 @@ const NETWORKS = {
     indexerWsUrl: "ws://127.0.0.1:8088/api/v4/graphql/ws",
     nodeWsUrl: "ws://127.0.0.1:9944",
     feeBlocksMargin: 100,
+    midns: null,
   },
 } as const;
 

@@ -14,6 +14,9 @@ importers:
       '@metamask/snaps-sdk':
         specifier: 12.0.0
         version: 12.0.0(supports-color@8.1.1)(typescript@5.9.2)(webextension-polyfill@0.12.0)
+      '@midnight-ntwrk/compact-runtime':
+        specifier: 0.19.0
+        version: 0.19.0
       '@midnight-ntwrk/zkir-v2':
         specifier: 2.1.0
         version: 2.1.0
@@ -645,6 +648,9 @@ packages:
     resolution: {integrity: sha512-X97J5AEcaKDTIAfKb4X93ZTLfvOahzDVadlveQW+7OZ7yhXjMxXoFmhX2d9UKv48iS2Dxq9kbGJ1lUfphu9ebQ==}
     engines: {node: ^18.18 || ^20.14 || >=22}
 
+  '@midnight-ntwrk/compact-runtime@0.19.0':
+    resolution: {integrity: sha512-0q1ZOlyPdCCEasAxlHxagO6Sb+Db5GM6qYPQ+c+cp71NRxQgiY0Wd0/LIoshQTs+OBISb4XTjiNQ1lxcKR79qQ==}
+
   '@midnight-ntwrk/dapp-connector-api@4.0.1':
     resolution: {integrity: sha512-IstRo8xfmlJlGgUcAJeRzPUmGCp0/xZR3/bfTOk33MHrzbGmB79r/zYziGavcclo1pkkoBHAodX4vz3xgFxczw==}
 
@@ -653,6 +659,9 @@ packages:
 
   '@midnightntwrk/ledger-v9@1.0.0-rc.3':
     resolution: {integrity: sha512-i/Cl/d2XQ19gIm5SCruMHr+XiruxIn9Ec3i15DrZ/44Yggzu1u5+dG7QUx7Rw1htkgALXivEt7Kw4NzxPr4pBw==}
+
+  '@midnightntwrk/onchain-runtime-v4@4.0.0-rc.3':
+    resolution: {integrity: sha512-LAf4g3vgwtPqActbi5RAoZcfYduqnFqtsHN+i1s/Mcb5vi2yMbPmpSOJ0YCCIGb2S/qY7G5tQARHVD0PJyHSNA==}
 
   '@midnightntwrk/wallet-sdk-abstractions@3.0.0-beta.0':
     resolution: {integrity: sha512-9gzVaSd9dk1rymqd6CrqSSNGPoMtIbr24wVSwCfuB3L1y9wcNgzCw9l/RH744XJE+4RyDZODEIWo7WU5LCYvNw==}
@@ -1171,6 +1180,9 @@ packages:
 
   '@types/node@26.4.1':
     resolution: {integrity: sha512-k97ENvZWtvA6yqz5/FS6a7duDgOPEeOQOc2iKS/nY6mX6qJUKtLnWzQS+Xj6tXweyj6ZcTAK2Qecetnvi9nCLA==}
+
+  '@types/object-inspect@1.13.0':
+    resolution: {integrity: sha512-lwGTVESDDV+XsQ1pH4UifpJ1f7OtXzQ6QBOX2Afq2bM/T3oOt8hF6exJMjjIjtEWeAN2YAo25J7HxWh97CCz9w==}
 
   '@types/stack-utils@2.0.3':
     resolution: {integrity: sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==}
@@ -4323,7 +4335,7 @@ snapshots:
       '@metamask/post-message-stream': 10.0.0(supports-color@8.1.1)
       '@metamask/providers': 22.1.1(supports-color@8.1.1)(typescript@5.9.2)(webextension-polyfill@0.12.0)
       '@metamask/rpc-errors': 7.0.3(supports-color@8.1.1)
-      '@metamask/snaps-sdk': 12.0.1(supports-color@8.1.1)(typescript@5.9.2)(webextension-polyfill@0.12.0)
+      '@metamask/snaps-sdk': 12.0.0(supports-color@8.1.1)(typescript@5.9.2)(webextension-polyfill@0.12.0)
       '@metamask/snaps-utils': 12.6.0(@babel/runtime@7.29.7)(supports-color@8.1.1)(typescript@5.9.2)(webextension-polyfill@0.12.0)
       '@metamask/superstruct': 3.4.1
       '@metamask/utils': 11.12.1(supports-color@8.1.1)
@@ -4557,11 +4569,21 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@midnight-ntwrk/compact-runtime@0.19.0':
+    dependencies:
+      '@midnightntwrk/onchain-runtime-v4': 4.0.0-rc.3
+      '@noble/curves': 2.4.0
+      '@noble/hashes': 2.4.0
+      '@types/object-inspect': 1.13.0
+      object-inspect: 1.13.4
+
   '@midnight-ntwrk/dapp-connector-api@4.0.1': {}
 
   '@midnight-ntwrk/zkir-v2@2.1.0': {}
 
   '@midnightntwrk/ledger-v9@1.0.0-rc.3': {}
+
+  '@midnightntwrk/onchain-runtime-v4@4.0.0-rc.3': {}
 
   '@midnightntwrk/wallet-sdk-abstractions@3.0.0-beta.0':
     dependencies:
@@ -5335,6 +5357,8 @@ snapshots:
   '@types/node@26.4.1':
     dependencies:
       undici-types: 8.3.0
+
+  '@types/object-inspect@1.13.0': {}
 
   '@types/stack-utils@2.0.3': {}
 

@@ -42,6 +42,7 @@ async function page(status?: string) {
               Row({ label: "Unshielded", children: Text({ children: night(nightOf(home, "unshielded")) }) }),
               Row({ label: "Shielded", children: Text({ children: night(nightOf(home, "shielded")) }) }),
               Row({ label: "Spendable", children: Text({ children: dust(home.dust) }) }),
+              ...(home.names?.length ? [Row({ label: "Names", children: Text({ children: home.names.join(", ") }) })] : []),
               Row({ label: "Last sync", children: Text({ children: `${ago(home.at)}${home.synced ? "" : " (incomplete)"}` }) }),
             ],
           })
@@ -69,7 +70,7 @@ async function page(status?: string) {
         name: "send",
         children: [
           Field({ label: "Kind", children: Dropdown({ name: "kind", children: [Option({ value: "unshielded", children: "unshielded" }), Option({ value: "shielded", children: "shielded" })] }) }),
-          Field({ label: "Recipient", children: Input({ name: "to", type: "text", placeholder: "mn_addr_… / mn_shield-addr_…" }) }),
+          Field({ label: "Recipient", children: Input({ name: "to", type: "text", placeholder: "mn_addr_… / mn_shield-addr_… / name.night" }) }),
           Field({ label: "Amount (NIGHT, or units of another token)", children: Input({ name: "amount", type: "text", placeholder: "1.5" }) }),
           Field({ label: "Token hex (optional)", children: Input({ name: "token", type: "text", placeholder: "defaults to NIGHT" }) }),
           Button({ type: "submit", name: "submit", children: "Send" }),

@@ -5,6 +5,7 @@ import { connectorCall, decodeSignData, listGrants, revokeGrant, signedMessageBy
 import { deriveKeys } from "./keys";
 import { nightOf } from "./home";
 import { night } from "./units";
+import { loadMidns } from "./midns";
 import { getState, isNetworkId, loadNetwork, NETWORK, NETWORK_IDS, setNetwork } from "./config";
 import {
   addressesFromKeys,
@@ -117,6 +118,9 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ origin, request }): Pr
       return diag();
     case "midnight_trace":
       return readTrace();
+    case "midnight_resolveName":
+      if (typeof params.name !== "string") throw new Error("params.name is required");
+      return (await loadMidns(NETWORK)).resolve(params.name);
     case "midnight_getNetwork":
       return { networkId: NETWORK.networkId, available: NETWORK_IDS };
     case "midnight_setNetwork": {
