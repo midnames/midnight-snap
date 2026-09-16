@@ -27,6 +27,7 @@
   "dependencies": {
     "@metamask/snaps-sdk": "12.0.0",
     "@midnight-ntwrk/compact-runtime": "0.19.0",
+    "@midnight-ntwrk/midnight-did": "0.5.0",
     "@midnight-ntwrk/zkir-v2": "2.1.0",
     "@midnightntwrk/ledger-v9": "1.0.0-rc.3",
     "@midnightntwrk/wallet-sdk-abstractions": "3.0.0-beta.0",

@@ -369,7 +369,7 @@ export function summarize({ shielded, unshielded, dust, isSynced }: FacadeState,
 }
 
 /** What the home page shows, in snap state at `homes.<networkId>`. */
-export type HomeSummary = { at: number; synced: boolean; unshielded: string; shielded: string; dust: string; names?: string[] };
+export type HomeSummary = { at: number; synced: boolean; unshielded: string; shielded: string; dust: string; names?: Array<{ name: string; did?: string }> };
 
 // ---- operations ----
 
@@ -405,11 +405,15 @@ async function syncOnce() {
   }
 }
 
-/** MidNS names that point to or are owned by this account. The home page shows them. Undefined if the lookup fails. */
+/** MidNS names that point to or are owned by this account, with their `did` field. Undefined if the lookup fails. */
 async function namesOf(keys: Keys, network: Network) {
   if (!network.midns) return undefined;
   try {
-    return (await loadMidns(network)).namesFor([keys.unshieldedKeystore.getAddress(), keys.shieldedSecretKeys.coinPublicKey]);
+    const midns = await loadMidns(network);
+    return midns.namesFor([keys.unshieldedKeystore.getAddress(), keys.shieldedSecretKeys.coinPublicKey]).map((name) => {
+      const did = midns.resolve(name).fields.did;
+      return did ? { name, did } : { name };
+    });
   } catch (e) {
     await trace(`names lookup failed: ${String((e as Error)?.message ?? e)}`);
     return undefined;

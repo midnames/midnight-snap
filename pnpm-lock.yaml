@@ -6,6 +6,11 @@ settings:
 
 overrides:
   '@midnightntwrk/ledger-v9': 1.0.0-rc.3
+  '@midnight-ntwrk/compact-runtime': 0.19.0
+  '@midnight-ntwrk/midnight-did-contract': link:./src/did/contract
+
+patchedDependencies:
+  '@midnight-ntwrk/midnight-did-domain@0.5.0': cc6d5cef38d91a835273ae5c6145b9f5fc9ab22acd9a1f9f76f20b3c6fe7ec70
 
 importers:
 
@@ -17,6 +22,9 @@ importers:
       '@midnight-ntwrk/compact-runtime':
         specifier: 0.19.0
         version: 0.19.0
+      '@midnight-ntwrk/midnight-did':
+        specifier: 0.5.0
+        version: 0.5.0
       '@midnight-ntwrk/zkir-v2':
         specifier: 2.1.0
         version: 2.1.0
@@ -653,6 +661,14 @@ packages:
 
   '@midnight-ntwrk/dapp-connector-api@4.0.1':
     resolution: {integrity: sha512-IstRo8xfmlJlGgUcAJeRzPUmGCp0/xZR3/bfTOk33MHrzbGmB79r/zYziGavcclo1pkkoBHAodX4vz3xgFxczw==}
+
+  '@midnight-ntwrk/midnight-did-domain@0.5.0':
+    resolution: {integrity: sha512-p1dgNxC6fpa2OhJgUMxLiyTkUB8UH/01xglXDQggFRcFy3rZ9WX21dfnHU/gdYtoEbl07CWb7CXwAHeNKuMKag==}
+    engines: {node: '>=24', pnpm: '>=10'}
+
+  '@midnight-ntwrk/midnight-did@0.5.0':
+    resolution: {integrity: sha512-NdOW55sjhpidSGEOJ66mKGS4GNtdMNJcv2qEugbtgUIYxTrW3PjAXS8ePR0wr2y47sSynQZO8ZUN/UrmU9MjWQ==}
+    engines: {node: '>=24', pnpm: '>=10'}
 
   '@midnight-ntwrk/zkir-v2@2.1.0':
     resolution: {integrity: sha512-UDMujjzCt0SA89uqOFWUL4LZTkxVAS8JjvOaYMAgxlSrWfN7m5th1R1qGlpDJuSH39rbWt6WwtuK3k08Mta6LA==}
@@ -3411,6 +3427,9 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+
 snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
@@ -4578,6 +4597,18 @@ snapshots:
       object-inspect: 1.13.4
 
   '@midnight-ntwrk/dapp-connector-api@4.0.1': {}
+
+  '@midnight-ntwrk/midnight-did-domain@0.5.0(patch_hash=cc6d5cef38d91a835273ae5c6145b9f5fc9ab22acd9a1f9f76f20b3c6fe7ec70)':
+    dependencies:
+      '@midnight-ntwrk/compact-runtime': 0.19.0
+      '@noble/hashes': 2.4.0
+      zod: 4.6.5
+
+  '@midnight-ntwrk/midnight-did@0.5.0':
+    dependencies:
+      '@midnight-ntwrk/midnight-did-contract': link:src/did/contract
+      '@midnight-ntwrk/midnight-did-domain': 0.5.0(patch_hash=cc6d5cef38d91a835273ae5c6145b9f5fc9ab22acd9a1f9f76f20b3c6fe7ec70)
+      zod: 4.6.5
 
   '@midnight-ntwrk/zkir-v2@2.1.0': {}
 
@@ -7826,3 +7857,5 @@ snapshots:
       yargs-parser: 21.1.1
 
   yocto-queue@0.1.0: {}
+
+  zod@4.6.5: {}

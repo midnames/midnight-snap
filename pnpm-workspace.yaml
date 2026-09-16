@@ -3,6 +3,12 @@ packages:
 # One ledger wasm in the bundle: the wallet-sdk betas pull slightly different rc's.
 overrides:
   '@midnightntwrk/ledger-v9': 1.0.0-rc.3
+  # One compact-runtime (0.19.0, ledger 9) for the MidNS and DID bindings and for midnight-did-domain.
+  '@midnight-ntwrk/compact-runtime': 0.19.0
+  # Ledger-9 bindings of the same did.compact; see src/did/contract/index.js.
+  '@midnight-ntwrk/midnight-did-contract': link:./src/did/contract
 allowBuilds:
   '@swc/core': true
   msgpackr-extract: true
+patchedDependencies:
+  '@midnight-ntwrk/midnight-did-domain@0.5.0': patches/@midnight-ntwrk__midnight-did-domain@0.5.0.patch

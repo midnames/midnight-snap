@@ -35,7 +35,7 @@ describe('MidNS', () => {
       name: 'snap.night',
       target: { kind: 'unshielded', hex: PAYER },
       owner: PAYER,
-      fields: { did: 'did:midnight:stagenet:' + '11'.repeat(32) },
+      fields: { did: 'did:midnight:stagenet:f63ba2791972e511dccca154d75df67ed22cdaccb3d01f539fbfbeda0eb07679' },
       unshielded: 'mn_addr_stagenet17mg2lwlwv0xet3nndwhhnp4hjfylvgjh2zs4khwc3v00u9fcrd2qyqxzpn',
     });
     expect(r.names).toEqual(['snap.night']);

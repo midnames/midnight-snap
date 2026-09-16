@@ -95,13 +95,19 @@ export function readMidns(stateHex: string, networkId: string) {
   };
 }
 
+/** The latest state of a contract, as the hex of a serialized `ContractState`, or null if the address has no contract. */
+export async function fetchContractState(network: Network, address: string): Promise<string | null> {
+  const data = await makeHttp(network.indexerHttpUrl).query<{ contractAction: { state: string } | null }>(
+    "query ($address: HexEncoded!) { contractAction(address: $address) { state } }",
+    { address },
+  );
+  return data.contractAction?.state ?? null;
+}
+
 /** Read the network's MidNS contract from the indexer. */
 export async function loadMidns(network: Network) {
   if (!network.midns) throw new Error(`MidNS is not deployed on ${network.networkId}`);
-  const data = await makeHttp(network.indexerHttpUrl).query<{ contractAction: { state: string } | null }>(
-    "query ($address: HexEncoded!) { contractAction(address: $address) { state } }",
-    { address: network.midns },
-  );
-  if (!data.contractAction) throw new Error(`no MidNS contract at ${network.midns} on ${network.networkId}`);
-  return readMidns(data.contractAction.state, network.networkId);
+  const state = await fetchContractState(network, network.midns);
+  if (!state) throw new Error(`no MidNS contract at ${network.midns} on ${network.networkId}`);
+  return readMidns(state, network.networkId);
 }

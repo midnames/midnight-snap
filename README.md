@@ -9,6 +9,7 @@ A Midnight wallet that runs in MetaMask as a Snap. The snap does these operation
 - It sends shielded and unshielded transfers. It makes the proofs in MetaMask or on a proof server.
 - It implements the dApp Connector API 4.0.1 (`@midnight-ntwrk/dapp-connector-api`).
 - It resolves Midnames (MidNS) names such as `alice.night`, and it sends to them.
+- It resolves `did:midnight` DIDs to DID documents (`@midnight-ntwrk/midnight-did`).
 
 The snap supports `stagenet` and a local Midnight network (`undeployed`). It uses
 `snap_getBip32Entropy`, so MetaMask stable accepts it only after an allowlist review and an audit.
@@ -22,6 +23,8 @@ Until then, use MetaMask Flask.
 | `src/fastsync/` | Fast sync. Refer to [src/fastsync/README.md](src/fastsync/README.md). |
 | `src/proving/` | Proving in MetaMask. Refer to [src/proving/README.md](src/proving/README.md). |
 | `src/midns/` | The MidNS contract source and its bindings. Refer to [Names](#names-midns). |
+| `src/did/contract/` | Ledger-9 bindings of the midnight-did contract. Refer to [DIDs](#dids). |
+| `patches/` | Adds the `stagenet` network to `@midnight-ntwrk/midnight-did-domain`. Refer to [DIDs](#dids). |
 | `connector/` | `@midnames/midnight-snap-connector`, the package for dApps. Refer to [connector/README.md](connector/README.md). |
 | `bridge-extension/` | A Chrome extension that adds the connector to all pages, for tests with dApps that you cannot change. |
 | `scripts/` | Proving params mirror, fast sync check, proving benchmark. |
@@ -55,7 +58,7 @@ After a rebuild, click **reinstall snap**. The connector does not reinstall a sn
 
 Open the snap in MetaMask to see its home page. The home page has:
 
-- The balances, the time of the last sync, and the MidNS names of the account.
+- The balances, the time of the last sync, and the MidNS names of the account with the DID of each name.
 - The unshielded address, the shielded address and the DUST public key.
 - **Sync now** and **Register NIGHT for DUST**.
 - A **Send** form. The recipient can be an address or a MidNS name.
@@ -100,6 +103,25 @@ the bindings again:
 ```sh
 compact compile +0.34.0 --skip-zk src/midns/ns.compact src/midns
 ```
+
+## DIDs
+
+`src/did.ts` resolves `did:midnight:<network>:<contract address>` with `MidnightDIDResolver` from
+`@midnight-ntwrk/midnight-did` 0.5.0 (midnightntwrk/midnight-did). The result is a W3C DID resolution result: the DID
+document, its metadata, and `didResolutionMetadata.error` (for example `notFound`) if the resolution fails.
+
+- The resolver does not decode contract state itself. The snap reads the state from the indexer and decodes it with
+  `src/did/contract/`. The published `@midnight-ntwrk/midnight-did-contract` bindings are for ledger 8, so
+  `pnpm-workspace.yaml` replaces that package with `src/did/contract/`: bindings of the same `did.compact`, made
+  with Compact 0.34.0. `src/did/contract/index.js` tells how to make them again.
+- The DID method has no `stagenet` network. `patches/@midnight-ntwrk__midnight-did-domain@0.5.0.patch` adds it.
+- A MidNS name links to a DID with its `did` field. The home page shows the DID of each name of the account.
+
+On stagenet, `snap.night` links to the test DID
+`did:midnight:stagenet:f63ba2791972e511dccca154d75df67ed22cdaccb3d01f539fbfbeda0eb07679`. The DID has a `midns` service
+that names `snap.night`, so the link goes in both directions. Its controller secret is public: it is for tests only.
+
+The snap does not create or update DIDs yet.
 
 ## Sync
 
@@ -164,6 +186,7 @@ also before `npm publish`) answers "Method not found". They answer only pages on
 | `midnight_sync` | | no |
 | `midnight_transfer` | `{ type: "shielded" \| "unshielded", to, amount, token? }`; `to` can be a name | yes |
 | `midnight_resolveName` | `{ name }` | no |
+| `midnight_resolveDid` | `{ did }` | no |
 | `midnight_registerDust` | | yes |
 | `midnight_signData` | `{ hex }` | yes |
 | `midnight_getNetwork` | | no |

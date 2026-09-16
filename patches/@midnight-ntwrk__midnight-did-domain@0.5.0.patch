@@ -1,0 +1,41 @@
+diff --git a/dist/midnight.d.ts b/dist/midnight.d.ts
+index 6be29e93c5548574f52ba08bd943099ed2e01a8a..4bf943ffd7f9029c85cef99d017d84d5c7f7633d 100644
+--- a/dist/midnight.d.ts
++++ b/dist/midnight.d.ts
+@@ -6,6 +6,7 @@ export declare enum MidnightNetwork {
+     Mainnet = "Mainnet",
+     Preview = "Preview",
+     Preprod = "Preprod",
++    Stagenet = "Stagenet",
+     Offchain = "Offchain"
+ }
+ export declare const ContractAddressHexSchema: z.core.$ZodBranded<z.ZodMiniString<string>, "ContractAddress", "out">;
+diff --git a/dist/midnight.js b/dist/midnight.js
+index 0473a62932280d2e8507d1a5a45476b5bf281142..5cdd65a62f8a18df6e4ef5d4f4404c600aaa2c12 100644
+--- a/dist/midnight.js
++++ b/dist/midnight.js
+@@ -7,6 +7,7 @@ export var MidnightNetwork;
+     MidnightNetwork["Mainnet"] = "Mainnet";
+     MidnightNetwork["Preview"] = "Preview";
+     MidnightNetwork["Preprod"] = "Preprod";
++    MidnightNetwork["Stagenet"] = "Stagenet";
+     MidnightNetwork["Offchain"] = "Offchain";
+ })(MidnightNetwork || (MidnightNetwork = {}));
+ export const ContractAddressHexSchema = z
+@@ -42,6 +43,7 @@ export const MidnightDIDSchema = z
+         "mainnet",
+         "preview",
+         "preprod",
++        "stagenet",
+         "offchain",
+     ].includes(net);
+ }, "Unknown network in Midnight DID"), z.refine((val) => {
+@@ -72,6 +74,8 @@ export function parseMidnightDID(did) {
+                     ? MidnightNetwork.Preview
+                     : net === "preprod"
+                         ? MidnightNetwork.Preprod
++                        : net === "stagenet"
++                        ? MidnightNetwork.Stagenet
+                         : net === "offchain"
+                             ? MidnightNetwork.Offchain
+                             : MidnightNetwork.Undeployed;

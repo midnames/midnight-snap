@@ -42,7 +42,7 @@ async function page(status?: string) {
               Row({ label: "Unshielded", children: Text({ children: night(nightOf(home, "unshielded")) }) }),
               Row({ label: "Shielded", children: Text({ children: night(nightOf(home, "shielded")) }) }),
               Row({ label: "Spendable", children: Text({ children: dust(home.dust) }) }),
-              ...(home.names?.length ? [Row({ label: "Names", children: Text({ children: home.names.join(", ") }) })] : []),
+              ...(home.names ?? []).map((n) => Row({ label: n.name, children: Text({ children: n.did ?? "no DID" }) })),
               Row({ label: "Last sync", children: Text({ children: `${ago(home.at)}${home.synced ? "" : " (incomplete)"}` }) }),
             ],
           })

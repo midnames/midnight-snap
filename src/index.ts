@@ -3,6 +3,7 @@ import type { OnCronjobHandler, OnRpcRequestHandler, OnWebSocketEventHandler } f
 import { dispatchWebSocketEvent, wsStats, SnapWebSocket } from "./ws-shim";
 import { connectorCall, decodeSignData, listGrants, revokeGrant, signedMessageBytes } from "./connector";
 import { deriveKeys } from "./keys";
+import { resolveDid } from "./did";
 import { nightOf } from "./home";
 import { night } from "./units";
 import { loadMidns } from "./midns";
@@ -121,6 +122,9 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ origin, request }): Pr
     case "midnight_resolveName":
       if (typeof params.name !== "string") throw new Error("params.name is required");
       return (await loadMidns(NETWORK)).resolve(params.name);
+    case "midnight_resolveDid":
+      if (typeof params.did !== "string") throw new Error("params.did is required");
+      return resolveDid(NETWORK, params.did);
     case "midnight_getNetwork":
       return { networkId: NETWORK.networkId, available: NETWORK_IDS };
     case "midnight_setNetwork": {

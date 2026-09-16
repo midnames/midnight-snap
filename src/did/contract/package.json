@@ -1,0 +1,8 @@
+{
+  "name": "@midnight-ntwrk/midnight-did-contract",
+  "version": "0.5.0-ledger9",
+  "private": true,
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts"
+}
