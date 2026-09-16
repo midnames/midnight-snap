@@ -111,7 +111,7 @@ async function balance(origin: string, sealed: boolean, txHex: string, options: 
       await s.facade.revert(recipe).catch(() => undefined);
       throw rejected();
     }
-    return { tx: hex.encode((await finalize(s, recipe)).serialize()) };
+    return { tx: await track(s, await finalize(s, recipe)) };
   });
 }
 

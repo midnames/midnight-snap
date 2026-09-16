@@ -13,7 +13,7 @@ import {
   ShieldedEncryptionPublicKey,
   UnshieldedAddress,
 } from "@midnightntwrk/wallet-sdk-address-format";
-import { bech32m } from "@scure/base";
+import { bech32m, hex } from "@scure/base";
 import { FastSyncDustWallet } from "./fastsync/dustWallet";
 import { FastSyncShieldedWallet } from "./fastsync/shieldedWallet";
 import { recordSyncOrigin, type WalletSyncOrigin } from "./fastsync/syncOrigin";
@@ -35,6 +35,8 @@ type Persisted = {
   /** A "fast" shielded state stores a zswap index as its offset, a "stock" state stores a ledger event id. */
   shieldedMode?: "fast" | "stock";
   txHistory?: unknown;
+  /** Hex of the finalized transactions that the SDK still tracks: not on chain, not reverted. */
+  pending?: string[];
 };
 
 // ---- settings (snap state `settings`) ----
@@ -172,6 +174,23 @@ async function session<T>(network: Network, deadline: number, fn: (s: Session) =
       txHistoryStorage: txHistory,
     } as any,
     ...(opts.provingStrategy === "browser" ? { provingService } : {}),
+    // The SDK tracks a transaction from submit (and from balancing, see `balance` in connector.ts) until it is on
+    // chain, and when its TTL passes it reverts it, which releases the coins that it booked. A session lasts one
+    // request, so without the saved list a transaction that never lands keeps its coins booked for ever.
+    // A restored entry gets a new creation time. The TTLs of its intents still limit it, and a transaction that pays
+    // DUST fees always has an intent.
+    pendingTransactionsService: async (cfg) => {
+      // The facade's own default. It is private only in the types.
+      const service = await (WalletFacade as any).makeDefaultPendingTransactionsService(cfg);
+      for (const tx of saved?.pending ?? []) {
+        try {
+          await service.addPendingTransaction(ledger.Transaction.deserialize("signature", "proof", "binding", hex.decode(tx)) as never);
+        } catch {
+          // A damaged entry must not stop the wallet from opening.
+        }
+      }
+      return service;
+    },
     shielded: (cfg) => {
       const w = Shielded({ ...(cfg as object), ...(opts.shieldedFast && origin ? { connectStartIndex: origin.zswapIndex } : {}) } as never);
       return shieldedSaved ? w.restore(shieldedSaved) : w.startWithSecretKeys(keys.shieldedSecretKeys);
@@ -218,6 +237,11 @@ async function session<T>(network: Network, deadline: number, fn: (s: Session) =
       dustAnchor: anchor,
       shieldedMode,
       txHistory: await txHistory.serialize().catch(() => undefined),
+      pending: await Rx.firstValueFrom(facade.state())
+        // Only the entries without a result. Sync clears a transaction that it sees on chain, and a restored one is
+        // not seen again, so a resolved entry would come back in every session.
+        .then((st) => st.pending.all.filter((item) => !("result" in item) || item.result === undefined).map((item) => hex.encode(item.tx.serialize())))
+        .catch(() => saved?.pending),
     };
     await setState(`wallets.${network.networkId}`, wallet);
     await facade.stop().catch(() => undefined);
