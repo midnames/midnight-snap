@@ -23,6 +23,21 @@ export class SnapWebSocket {
   onerror: Handler = null;
   private id: string | undefined;
   private queue: Array<string | number[]> = [];
+  private listeners = new Map<string, Set<(ev: any) => void>>();
+
+  addEventListener(type: string, listener: (ev: any) => void) {
+    this.listeners.set(type, (this.listeners.get(type) ?? new Set()).add(listener));
+  }
+
+  removeEventListener(type: string, listener: (ev: any) => void) {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  /** Call the `on<type>` handler and the listeners. */
+  private emit(type: "open" | "message" | "close" | "error", ev: any) {
+    (this as any)[`on${type}`]?.(ev);
+    this.listeners.get(type)?.forEach((listener) => listener(ev));
+  }
 
   constructor(readonly url: string, protocols?: string | string[]) {
     const list = protocols === undefined ? undefined : ([] as string[]).concat(protocols);
@@ -52,8 +67,8 @@ export class SnapWebSocket {
       .catch((err) => {
         wsStats.openErrors.push(`${url}: ${err?.message ?? JSON.stringify(err)}`);
         this.readyState = 3;
-        this.onerror?.({ type: "error", message: String(err), error: err });
-        this.onclose?.({ type: "close", code: 1006, reason: String(err), wasClean: false });
+        this.emit("error", { type: "error", message: String(err), error: err });
+        this.emit("close", { type: "close", code: 1006, reason: String(err), wasClean: false });
       });
   }
 
@@ -66,7 +81,7 @@ export class SnapWebSocket {
   private rawSend(message: string | number[]) {
     wsStats.sent++;
     return snap.request({ method: "snap_sendWebSocketMessage", params: { id: this.id!, message } })
-      .catch((err) => { wsStats.sendErrors.push(err?.message ?? JSON.stringify(err)); this.onerror?.({ type: "error", message: String(err), error: err }); });
+      .catch((err) => { wsStats.sendErrors.push(err?.message ?? JSON.stringify(err)); this.emit("error", { type: "error", message: String(err), error: err }); });
   }
 
   close(code?: number, reason?: string) {
@@ -81,18 +96,18 @@ export class SnapWebSocket {
   private finishClose(code: number, reason: string, wasClean: boolean) {
     this.readyState = 3;
     if (this.id) byId.delete(this.id);
-    this.onclose?.({ type: "close", code, reason, wasClean });
+    this.emit("close", { type: "close", code, reason, wasClean });
   }
 
   handle(ev: WebSocketEvent) {
     switch (ev.type) {
       case "open":
         this.readyState = 1;
-        this.onopen?.({ type: "open" });
+        this.emit("open", { type: "open" });
         break;
       case "message": {
         const data = ev.data.type === "text" ? ev.data.message : new Uint8Array(ev.data.message).buffer;
-        this.onmessage?.({ type: "message", data });
+        this.emit("message", { type: "message", data });
         break;
       }
       case "close":

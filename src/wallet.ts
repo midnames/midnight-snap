@@ -18,9 +18,6 @@ import { FastSyncDustWallet } from "./fastsync/dustWallet";
 import { isName, loadMidns } from "./midns";
 import { FastSyncShieldedWallet } from "./fastsync/shieldedWallet";
 import { recordSyncOrigin, type WalletSyncOrigin } from "./fastsync/syncOrigin";
-import type { DustCatchUpAnchor } from "./fastsync/dustCatchUp";
-import { findDustAlignment } from "./fastsync/dustQueries";
-import { makeHttp } from "./fastsync/indexerClient";
 import { DEFAULT_PROVING_SERVER_URL, getState, NETWORK, PROVING_PARAMS_URL, REQUEST_BUDGET_MS, setState, type Network } from "./config";
 import { deriveKeys, type Keys } from "./keys";
 import { provingService, provingConfig } from "./proving/browserProving";
@@ -32,7 +29,6 @@ type Persisted = {
   unshielded: string;
   dust: string;
   savedAt: number;
-  dustAnchor?: DustCatchUpAnchor | null;
   /** A "fast" shielded state stores a zswap index as its offset, a "stock" state stores a ledger event id. */
   shieldedMode?: "fast" | "stock";
   txHistory?: unknown;
@@ -45,7 +41,7 @@ type Persisted = {
 export type SyncOptions = {
   /** Sync shielded coins through the indexer. The indexer receives the viewing key. */
   shieldedFast: boolean;
-  /** Dust catch-up runs only after a gap longer than this. For short gaps the stock restore is faster. */
+  /** A saved dust state is rebuilt only after a gap longer than this. For short gaps the stock restore is faster. */
   dustCatchUpMinGapMs: number;
   /** "browser" proves in the snap. "server" sends the proof preimages to `provingServerUrl`. */
   provingStrategy: "server" | "browser";
@@ -54,7 +50,9 @@ export type SyncOptions = {
   provingParamsUrl: string;
 };
 const DEFAULT_SYNC_OPTIONS: SyncOptions = {
-  shieldedFast: false,
+  // The stock shielded sync of a new wallet replays every zswap event of the chain (52k on stagenet), and MetaMask stops
+  // the snap before it ends. See src/fastsync/README.md.
+  shieldedFast: true,
   dustCatchUpMinGapMs: 60 * 60_000,
   provingStrategy: "browser",
   provingServerUrl: DEFAULT_PROVING_SERVER_URL,
@@ -159,8 +157,8 @@ async function session<T>(network: Network, deadline: number, fn: (s: Session) =
     ? InMemoryTransactionHistoryStorage.restore(saved.txHistory as any, WalletEntrySchema as any)
     : new InMemoryTransactionHistoryStorage(WalletEntrySchema as any);
   const gapMs = saved ? Date.now() - saved.savedAt : 0;
-  let anchor = saved?.dustAnchor ?? null;
-  const catchUp = !!anchor && gapMs > opts.dustCatchUpMinGapMs;
+  // A new wallet always rebuilds: the stock sync replays every dust event of the chain, too many for MetaMask.
+  const rebuild = !saved || gapMs > opts.dustCatchUpMinGapMs;
   // A saved shielded state from the other mode has an incompatible offset. Sync shielded again from zero.
   const shieldedSaved = saved && (saved.shieldedMode ?? "stock") === shieldedMode ? saved.shielded : null;
   const Shielded = opts.shieldedFast ? FastSyncShieldedWallet : ShieldedWallet;
@@ -203,15 +201,12 @@ async function session<T>(network: Network, deadline: number, fn: (s: Session) =
     dust: (cfg) => {
       const w = FastSyncDustWallet({
         ...(cfg as object),
-        origin: origin?.dust ?? null,
-        catchUp: catchUp
+        rebuild: rebuild
           ? {
-              anchor: anchor!,
               dustAddress: DustAddress.encodePublicKey(network.networkId, keys.dustSecretKey.publicKey),
-              onResult: (r: { anchor: DustCatchUpAnchor; spendsApplied: number; generationsAdded: number; roundTrips: number; elapsedMs: number }) => {
-                anchor = r.anchor;
-                void trace(`dust catch-up: ${r.spendsApplied} spends, ${r.generationsAdded} generations, ${r.roundTrips} round trips, ${r.elapsedMs}ms`);
-              },
+              onResult: (r: { blockHeight: number; outputs: number; spends: number; elapsedMs: number }) =>
+                void trace(`dust rebuild at block ${r.blockHeight}: ${r.outputs} outputs, ${r.spends} spends, ${r.elapsedMs}ms`),
+              onError: (e: unknown) => void trace(`dust rebuild failed, stock sync: ${describe(e)}`),
             }
           : null,
       } as never);
@@ -219,23 +214,18 @@ async function session<T>(network: Network, deadline: number, fn: (s: Session) =
     },
   });
   await facade.start(keys.shieldedSecretKeys, keys.dustSecretKey);
-  await trace(`open: shielded=${shieldedMode}${shieldedSaved ? " restored" : " fresh"} dust=${catchUp ? "catch-up" : origin ? "origin" : "stock"} gap=${Math.round(gapMs / 1000)}s`);
+  await trace(`open: shielded=${shieldedMode}${shieldedSaved ? " restored" : " fresh"} dust=${rebuild ? "rebuild" : "stock"} gap=${Math.round(gapMs / 1000)}s`);
 
   try {
     const state = await syncFor(facade, deadline - Date.now());
     if (requireSynced && !state.isSynced) throw new Error("wallet is not synced yet; sync, then try again");
     return await fn({ facade, keys, state, network });
   } finally {
-    anchor ??= await bootstrapAnchor(facade, network.indexerHttpUrl).catch(async (e) => {
-      await trace(`dust anchor error: ${String(e)}`);
-      return null;
-    });
     const wallet: Persisted = {
       shielded: await facade.shielded.serializeState(),
       unshielded: await facade.unshielded.serializeState(),
       dust: await facade.dust.serializeState(),
       savedAt: Date.now(),
-      dustAnchor: anchor,
       shieldedMode,
       txHistory: await txHistory.serialize().catch(() => undefined),
       pending: await Rx.firstValueFrom(facade.state())
@@ -247,23 +237,6 @@ async function session<T>(network: Network, deadline: number, fn: (s: Session) =
     await setState(`wallets.${network.networkId}`, wallet);
     await facade.stop().catch(() => undefined);
   }
-}
-
-/**
- * First anchor for dust catch-up. Catch-up only moves an existing anchor forward. The indexer's latest
- * dust alignment is a valid anchor only when the saved dust trees end at the same positions.
- */
-async function bootstrapAnchor(facade: WalletFacade, indexerHttpUrl: string): Promise<DustCatchUpAnchor | null> {
-  const st = await Rx.firstValueFrom(facade.state());
-  if (!st.isSynced) return null;
-  const d = st.dust as any;
-  const local = (d.state?.state ?? d.state) as ledger.DustLocalState | undefined; // DustWalletState.state is the CoreWallet.
-  if (typeof local?.commitmentTreeFirstFree !== "bigint") return null;
-  const a = await findDustAlignment(makeHttp(indexerHttpUrl));
-  if (!a) return null;
-  if (BigInt(a.commitmentFrontier) !== local.commitmentTreeFirstFree || BigInt(a.generationFrontier) !== local.generatingTreeFirstFree) return null;
-  await trace(`dust anchor at block ${a.blockHeight}`);
-  return { blockHeight: a.blockHeight, generationFrontier: a.generationFrontier, commitmentFrontier: a.commitmentFrontier };
 }
 
 /** Wait for a synced state, or until the budget ends. Returns the last state. */
@@ -289,6 +262,15 @@ export const confirm = (title: string, rows: Array<[string, string]>) =>
 export const secretKeys = (keys: Keys) => ({ shieldedSecretKeys: keys.shieldedSecretKeys, dustSecretKey: keys.dustSecretKey });
 export const ttl = () => new Date(Date.now() + 60 * 60_000);
 
+/** Every part of an error: a ledger or effect error often has an empty `message` and keeps the reason in `cause`. */
+export function describe(e: unknown, depth = 0): string {
+  if (e === null || e === undefined) return String(e);
+  const error = e as { name?: string; message?: string; cause?: unknown; errors?: unknown[] };
+  const head = [error.name, error.message || (depth === 0 ? String(e) : undefined)].filter(Boolean).join(": ");
+  const nested = depth < 3 ? [error.cause, ...(error.errors ?? [])].filter((c) => c !== undefined && c !== null).map((c) => describe(c, depth + 1)) : [];
+  return [head || String(e), ...nested].filter(Boolean).join(" <- ").slice(0, 400);
+}
+
 /**
  * Sign and prove, then validate. Does not submit.
  * On failure, release the coins that the recipe booked. The session saves state also after an error, and the
@@ -306,7 +288,7 @@ export async function finalize({ facade, keys }: Session, recipe: BalancingRecip
     } as any);
     return tx;
   } catch (e) {
-    await trace(`finalize failed, coins released: ${String((e as Error)?.message ?? e)}`);
+    await trace(`finalize failed, coins released: ${describe(e)}`);
     await facade.revert(recipe).catch(() => undefined);
     throw e;
   }

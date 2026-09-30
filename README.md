@@ -136,20 +136,21 @@ notification.
 
 | Option | Default | Effect |
 |---|---|---|
-| `shieldedFast` | `false` | Sync shielded coins through the indexer. The indexer receives the viewing key. |
-| `dustCatchUpMinGapMs` | `3600000` | Use dust catch-up only after a longer gap. |
+| `shieldedFast` | `true` | Sync shielded coins through the indexer. The indexer receives the viewing key. A new wallet cannot sync with `false` on stagenet: MetaMask stops the snap before the sync ends. |
+| `dustCatchUpMinGapMs` | `3600000` | Rebuild a saved dust state only after a longer gap. A new wallet always rebuilds. |
 | `provingStrategy` | `"browser"` | `"browser"` proves in MetaMask. `"server"` uses a proof server. |
 | `provingServerUrl` | `http://localhost:6300` | The proof server. |
 | `provingParamsUrl` | `https://assets.midnames.com` | The host of the proving keys. It must send CORS headers. |
 
-Sync times on stagenet (24k dust events):
+Sync times on stagenet in MetaMask Flask, September 2026 (52k dust events, 52k zswap events):
 
-| Path | New wallet | Saved state, 5 min old |
-|---|---|---|
-| Shielded, stock | 15 s | 3.2 s |
-| Shielded, fast | 5.3 s | 3.2 s |
-| Dust, stock | — | 3.2 s |
-| Dust, catch-up with no spends | — | 16 to 18 s |
+| Path | New wallet | Saved state, 5 min old | Saved state, more than 1 h old |
+|---|---|---|---|
+| Shielded, stock | MetaMask stops the snap | 3.2 s | not measured |
+| Shielded, fast | 5.3 s (24k events) | 3.2 s | not measured |
+| Dust | rebuild, 15 s (26 spends) | stock, 3.2 s | rebuild, 15 s |
+
+A full `midnight_sync` with a dust rebuild took 18.5 s.
 
 ## Proving
 

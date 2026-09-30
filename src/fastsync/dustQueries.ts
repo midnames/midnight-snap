@@ -2,64 +2,6 @@
 import { hex } from "@scure/base";
 import { mapWithConcurrency, type IndexerHttp } from "./indexerClient.ts";
 
-export const DUST_GENERATIONS = `
-  subscription DustGenerationsForAddress($address: DustAddress!, $startIndex: Int!, $endIndex: Int!) {
-    dustGenerations(dustAddress: $address, startIndex: $startIndex, endIndex: $endIndex) {
-      __typename
-      ... on DustGenerationsItem {
-        generationMtIndex
-        commitmentMtIndex
-        backingNight
-        ctime
-        transactionHash
-      }
-    }
-  }`;
-
-export const DUST_TRANSACTION = `
-  query DustTransaction($hash: HexEncoded!) {
-    transactions(offset: { hash: $hash }) {
-      __typename
-      ... on RegularTransaction {
-        dustCommitmentStartIndex
-        dustCommitmentEndIndex
-        dustLedgerEvents { id raw }
-      }
-      ... on SystemTransaction {
-        dustLedgerEvents { id raw }
-      }
-    }
-  }`;
-
-/** Always send `toBlock`. Without it the subscription waits for new blocks after the history and does not end. */
-export const DUST_NULLIFIER_SPEND = `
-  subscription DustSpend($prefixes: [HexEncoded!]!, $fromBlock: Int, $toBlock: Int) {
-    dustNullifierTransactions(
-      nullifierLeBytesPrefixes: $prefixes
-      fromBlock: $fromBlock
-      toBlock: $toBlock
-    ) {
-      nullifierLeBytes
-      transactionHash
-      blockHeight
-    }
-  }`;
-
-export interface DustGenerationItem {
-  readonly generationMtIndex: number;
-  readonly commitmentMtIndex: number;
-  readonly backingNight: string;
-  readonly ctime: number;
-  readonly transactionHash: string;
-}
-
-export interface DustTransaction {
-  readonly __typename: string;
-  readonly dustCommitmentStartIndex?: number;
-  readonly dustCommitmentEndIndex?: number;
-  readonly dustLedgerEvents?: ReadonlyArray<{ readonly id: number; readonly raw: string }>;
-}
-
 export const hexToBytes = (s: string): Uint8Array => hex.decode(s.replace(/^0x/, ""));
 
 /** Little-endian hex, the format of `nullifierLeBytes`. */
@@ -73,34 +15,6 @@ export const nullifierLeHex = (nullifier: bigint, byteLength = 32): string => {
   return out;
 };
 
-/** Highest index in a dust tree. Finds which single-index ranges the indexer accepts. `knownAtLeast` makes the search shorter. */
-export const findFrontier = async (http: IndexerHttp, field: string, knownAtLeast = 0): Promise<number> => {
-  const accepts = async (index: number): Promise<boolean> => {
-    try {
-      const data = await http.query<Record<string, unknown>>(`query F($s: Int!, $e: Int!) { ${field}(startIndex: $s, endIndex: $e) { endIndex } }`, {
-        s: index,
-        e: index,
-      });
-      return Boolean(data[field]);
-    } catch {
-      return false;
-    }
-  };
-  let low = knownAtLeast > 0 && (await accepts(knownAtLeast)) ? knownAtLeast : 0;
-  let high = low + 1;
-  while (await accepts(high)) {
-    low = high;
-    high = high * 2 - Math.floor(low / 2);
-    if (high > 1e9) return low;
-  }
-  while (low + 1 < high) {
-    const mid = Math.floor((low + high) / 2);
-    if (await accepts(mid)) low = mid;
-    else high = mid;
-  }
-  return low;
-};
-
 export const collapsedUpdate = async (http: IndexerHttp, field: string, startIndex: number, endIndex: number): Promise<string | null> => {
   if (endIndex < startIndex) return null;
   const data = await http.query<Record<string, { update: string } | null>>(
@@ -108,11 +22,6 @@ export const collapsedUpdate = async (http: IndexerHttp, field: string, startInd
     { s: startIndex, e: endIndex },
   );
   return data[field]?.update ?? null;
-};
-
-export const fetchDustTransaction = async (http: IndexerHttp, hash: string): Promise<DustTransaction | null> => {
-  const data = await http.query<{ transactions?: ReadonlyArray<DustTransaction> }>(DUST_TRANSACTION, { hash });
-  return data.transactions?.[0] ?? null;
 };
 
 /** Tree frontiers and transaction data from one block. All index fields are exclusive (leaf counts). */
