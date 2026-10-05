@@ -1,8 +1,10 @@
 import { installSnap } from '@metamask/snaps-jest';
 import { execFileSync } from 'node:child_process';
 
-/** A local development page: the only kind of origin the non-connector RPC answers. */
+/** A local development page. With the wallet site, the only origins the non-connector RPC answers. */
 const LOCAL = 'http://localhost:8095';
+/** SNAP_WALLET_ORIGIN of the test build (package.json "test"). */
+const WALLET_SITE = 'https://wallet.example';
 
 /** ledger-v9's verifySignature, run in a child Node process: the package is ESM + wasm, which jest's
  *  CJS transform cannot load. `data` is hex. */
@@ -43,18 +45,18 @@ describe('midnight snap', () => {
     }));
   });
 
-  it('keeps every method but the connector to local development pages', async () => {
+  it('keeps every method but the connector to the wallet site and local development pages', async () => {
     const { request } = await installSnap();
     for (const method of ['midnight_getAccounts', 'midnight_reset', 'midnight_getSites', 'midnight_trace', 'midnight_setSyncOptions', 'ping']) {
       expect(await request({ origin: 'https://evil.example', method })).toRespondWithError(
-        expect.objectContaining({ message: expect.stringContaining('only available to local development pages') }),
+        expect.objectContaining({ message: expect.stringContaining('only available to the wallet site and local development pages') }),
       );
     }
     // Look-alike hosts are not local.
     expect(await request({ origin: 'http://localhost.evil.example', method: 'midnight_getNetwork' })).toRespondWithError(
-      expect.objectContaining({ message: expect.stringContaining('only available to local development pages') }),
+      expect.objectContaining({ message: expect.stringContaining('only available to the wallet site and local development pages') }),
     );
-    for (const origin of ['http://localhost:3000', 'http://127.0.0.1:8095', 'http://[::1]:5173']) {
+    for (const origin of ['http://localhost:3000', 'http://127.0.0.1:8095', 'http://[::1]:5173', WALLET_SITE]) {
       expect(await request({ origin, method: 'midnight_getNetwork' })).toRespondWith(expect.objectContaining({ networkId: 'stagenet' }));
     }
     // Any site keeps the connector, which has its own per-origin grants.
@@ -101,10 +103,9 @@ describe('network', () => {
 
   it('switches at runtime and keeps state, addresses and grants per network', async () => {
     const { request, onHomePage } = await installSnap();
-    expect(await request({ origin: LOCAL, method: 'midnight_getNetwork' })).toRespondWith({
-      networkId: 'stagenet',
-      available: ['stagenet', 'undeployed'],
-    });
+    expect(await request({ origin: LOCAL, method: 'midnight_getNetwork' })).toRespondWith(
+      expect.objectContaining({ networkId: 'stagenet', available: ['stagenet', 'undeployed'] }),
+    );
 
     // Connect a dApp on stagenet; the grant must not carry over to another network.
     const conn = request({ method: 'midnight_connector', params: { method: 'connect', args: enc(['stagenet']) } });
@@ -282,5 +283,128 @@ describe('connector', () => {
     // Reaches the handler (and fails deserializing '00'), rather than being unknown.
     const spec = await request(connector('balanceUnsealedTransaction', ['00']));
     expect(envelope(spec).error.code).not.toBe('InvalidRequest');
+  });
+});
+
+describe('endpoints', () => {
+  const STAGENET_INDEXER = 'https://indexer.stagenet.shielded.tools/api/v4/graphql';
+  const network = async (request: any) => ((await request({ origin: LOCAL, method: 'midnight_getNetwork' })) as any).response.result;
+
+  it('changes the indexer and node of the active network after a confirmation, and restores the defaults', async () => {
+    const { request } = await installSnap();
+    expect((await network(request)).endpoints).toMatchObject({ indexerHttpUrl: STAGENET_INDEXER, custom: false });
+
+    // Refused before any dialog.
+    for (const params of [{ indexerHttpUrl: 'wss://indexer.example' }, { nodeWsUrl: 'https://node.example' }, { indexerHttpUrl: 'not a url' }]) {
+      expect(await request({ origin: LOCAL, method: 'midnight_setEndpoints', params })).toRespondWithError(expect.objectContaining({ message: expect.any(String) }));
+    }
+
+    const declined = request({ origin: LOCAL, method: 'midnight_setEndpoints', params: { indexerHttpUrl: 'https://indexer.example/api/v4/graphql/' } });
+    const dialog = JSON.stringify((await declined.getInterface()).content);
+    expect(dialog).toContain('viewing key');
+    await ((await declined.getInterface()) as any).cancel();
+    expect(await declined).toRespondWithError(expect.objectContaining({ message: expect.stringContaining('rejected') }));
+    expect((await network(request)).endpoints.custom).toBe(false);
+
+    const approved = request({ origin: LOCAL, method: 'midnight_setEndpoints', params: { indexerHttpUrl: 'https://indexer.example/api/v4/graphql/', nodeWsUrl: 'wss://node.example' } });
+    await ((await approved.getInterface()) as any).ok();
+    expect(await approved).toRespondWith(expect.objectContaining({ indexerHttpUrl: 'https://indexer.example/api/v4/graphql', nodeWsUrl: 'wss://node.example', custom: true, changed: true }));
+
+    // The wallet and dApps use the new endpoints. The WebSocket URL follows the indexer URL.
+    const conn = request({ method: 'midnight_connector', params: { method: 'connect', args: JSON.stringify(['stagenet']) } });
+    await ((await conn.getInterface()) as any).ok();
+    await conn;
+    const cfg = await request({ method: 'midnight_connector', params: { method: 'getConfiguration', args: JSON.stringify([]) } });
+    expect(JSON.parse((cfg as any).response.result.result)).toMatchObject({
+      indexerUri: 'https://indexer.example/api/v4/graphql',
+      indexerWsUri: 'wss://indexer.example/api/v4/graphql/ws',
+      substrateNodeUri: 'wss://node.example',
+    });
+
+    // The endpoints are for one network.
+    const sw = request({ origin: LOCAL, method: 'midnight_setNetwork', params: { networkId: 'undeployed' } });
+    await ((await sw.getInterface()) as any).ok();
+    await sw;
+    expect((await network(request)).endpoints).toMatchObject({ indexerHttpUrl: 'http://127.0.0.1:8088/api/v4/graphql', custom: false });
+    const back = request({ origin: LOCAL, method: 'midnight_setNetwork', params: { networkId: 'stagenet' } });
+    await ((await back.getInterface()) as any).ok();
+    await back;
+    expect((await network(request)).endpoints.custom).toBe(true);
+
+    // Empty values restore the defaults.
+    const reset = request({ origin: LOCAL, method: 'midnight_setEndpoints', params: { indexerHttpUrl: '', nodeWsUrl: '' } });
+    await ((await reset.getInterface()) as any).ok();
+    expect(await reset).toRespondWith(expect.objectContaining({ indexerHttpUrl: STAGENET_INDEXER, custom: false, changed: true }));
+  });
+});
+
+describe('transfers', () => {
+  const SELF = 'mn_addr_stagenet1em2hy0f0qafqp2fwmhtf5jfhre0zauu88xpw84vpj0tetsml6ujsxlugru';
+
+  it('checks every output of a transfer and of a fee estimate before it opens the wallet', async () => {
+    const { request } = await installSnap();
+    for (const method of ['midnight_transfer', 'midnight_estimateFee']) {
+      const cases: Array<[unknown, string]> = [
+        [{ outputs: [] }, 'non-empty'],
+        [{ outputs: [{ type: 'unshielded', to: SELF, amount: '1' }, { type: 'unshielded', to: SELF.replace('stagenet', 'undeployed'), amount: '1' }] }, 'output 2'],
+        [{ outputs: [{ type: 'unshielded', to: SELF, amount: '1.5' }] }, 'whole number'],
+        [{ outputs: [{ type: 'unshielded', to: SELF, amount: '1', token: 'night' }] }, 'token'],
+        [{ outputs: [{ type: 'shielded', to: SELF, amount: '1' }] }, 'shield-addr'],
+      ];
+      for (const [params, message] of cases) {
+        expect(await request({ origin: LOCAL, method, params })).toRespondWithError(expect.objectContaining({ message: expect.stringContaining(message) }));
+      }
+    }
+  });
+});
+
+describe('wallet state', () => {
+  // A transaction history in the format of the wallet SDK, made by the SDK in Node (it needs the ledger wasm).
+  const savedHistory = () =>
+    JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `const { InMemoryTransactionHistoryStorage } = await import('@midnightntwrk/wallet-sdk-abstractions');
+           const { WalletEntrySchema } = await import('@midnightntwrk/wallet-sdk-facade');
+           const h = new InMemoryTransactionHistoryStorage(WalletEntrySchema);
+           const NIGHT = '00'.repeat(32), OTHER = 'ab'.repeat(32);
+           const utxo = (value, tokenType) => ({ value, owner: 'me', tokenType, intentHash: 'i', outputIndex: 0 });
+           const block = (height, iso) => ({ hash: 'b' + height, height, timestamp: new Date(iso) });
+           await h.gotFinalized({ hash: 'received', identifiers: ['r'], status: 'SUCCESS', fees: null,
+             finalizedBlock: block(1, '2026-10-01T10:00:00Z'), unshielded: { id: 1, createdUtxos: [utxo(5000000n, NIGHT)], spentUtxos: [] } });
+           await h.gotFinalized({ hash: 'sent', identifiers: ['s'], status: 'SUCCESS', fees: 42n,
+             finalizedBlock: block(2, '2026-10-02T10:00:00Z'), unshielded: { id: 2, createdUtxos: [utxo(3000000n, NIGHT)], spentUtxos: [utxo(5000000n, NIGHT)] },
+             shielded: { receivedCoins: [], spentCoins: [{ type: OTHER, nonce: 'n', value: 7n, mtIndex: 0n }] } });
+           await h.gotPending({ hash: 'pending', identifiers: ['p'], submittedAt: new Date('2026-10-03T10:00:00Z') });
+           await h.gotRejected({ hash: 'rejected', identifiers: ['x'], rejectedAt: new Date('2026-09-30T10:00:00Z'), reason: 'expired' });
+           process.stdout.write(JSON.stringify(await h.serialize()));`,
+        ],
+        { cwd: __dirname, encoding: 'utf8' },
+      ),
+    );
+
+  it('reads the history of the saved wallet, newest first, with the balance change of each token', async () => {
+    const { request } = await installSnap({ options: { state: { wallets: { stagenet: { txHistory: savedHistory() } } } } });
+    const page = await request({ origin: LOCAL, method: 'midnight_getHistory', params: { page: 0, pageSize: 3 } });
+    expect(page).toRespondWith({
+      total: 4,
+      entries: [
+        { hash: 'pending', status: 'pending', at: '2026-10-03T10:00:00.000Z', fee: null, unshielded: {}, shielded: {} },
+        { hash: 'sent', status: 'success', at: '2026-10-02T10:00:00.000Z', fee: '42', unshielded: { ['00'.repeat(32)]: '-2000000' }, shielded: { ['ab'.repeat(32)]: '-7' } },
+        { hash: 'received', status: 'success', at: '2026-10-01T10:00:00.000Z', fee: null, unshielded: { ['00'.repeat(32)]: '5000000' }, shielded: {} },
+      ],
+    });
+    const next = await request({ origin: LOCAL, method: 'midnight_getHistory', params: { page: 1, pageSize: 3 } });
+    expect(next).toRespondWith({ total: 4, entries: [expect.objectContaining({ hash: 'rejected', status: 'rejected' })] });
+  });
+
+  it('answers the read methods of a new wallet without the network', async () => {
+    const { request } = await installSnap();
+    expect(await request({ origin: LOCAL, method: 'midnight_getHistory' })).toRespondWith({ total: 0, entries: [] });
+    expect(await request({ origin: LOCAL, method: 'midnight_getSummary' })).toRespondWith(null);
+    expect(await request({ origin: LOCAL, method: 'midnight_getSyncProgress' })).toRespondWith(null);
   });
 });

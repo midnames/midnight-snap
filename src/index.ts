@@ -7,18 +7,22 @@ import { resolveDid } from "./did";
 import { nightOf } from "./home";
 import { night } from "./units";
 import { loadMidns } from "./midns";
-import { getState, isNetworkId, loadNetwork, NETWORK, NETWORK_IDS, setNetwork } from "./config";
+import { endpoints, getState, isNetworkId, loadNetwork, NETWORK, NETWORK_IDS, setEndpoints, setNetwork, validEndpointsPatch } from "./config";
 import {
   addressesFromKeys,
   clearState,
   confirm,
+  deregisterDust,
+  estimateFee,
   getSyncOptions,
+  history,
   isWalletBusy,
   markAccountAsNew,
   readTrace,
   registerDust,
   setSyncOptions,
   sync,
+  syncProgress,
   trace,
   transfer,
   validSyncOptionsPatch,
@@ -56,11 +60,17 @@ async function diag(timeoutMs = 15_000) {
 
 /** True in builds made with SNAP_DEV_RPC=1 (snap.config.ts). */
 declare const SNAP_DEV_RPC: boolean;
+/** The wallet site, for example `https://wallet.midnames.com`. Set with SNAP_WALLET_ORIGIN at build time. Empty: none. */
+declare const SNAP_WALLET_ORIGIN: string;
+
+/** Debugging methods. Only development builds have them, also for the wallet site. */
+const DEV_ONLY_METHODS = new Set(["midnight_diag", "midnight_trace"]);
 
 /**
  * Every website can call this snap (`endowment:rpc.dapps: true`), and the manifest cannot allow
  * one method only. dApps use `midnight_connector`, which has per-origin grants. The other methods
- * are for development pages on localhost. The home page has the same functions for users.
+ * are for the wallet site (SNAP_WALLET_ORIGIN) and, in development builds, for pages on localhost.
+ * The home page has the same functions for users.
  */
 function isLocalDevOrigin(origin: string) {
   try {
@@ -81,9 +91,10 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ origin, request }): Pr
     await loadNetwork();
     return connectorCall(origin, params.method, params.args ?? "");
   }
-  if (!SNAP_DEV_RPC) throw new Error(`Method not found: ${request.method}`);
-  if (!isLocalDevOrigin(origin)) {
-    throw new Error(`${request.method} is only available to local development pages (localhost); dApps use midnight_connector`);
+  const isWalletSite = SNAP_WALLET_ORIGIN !== "" && origin === SNAP_WALLET_ORIGIN;
+  if (!SNAP_DEV_RPC && (!isWalletSite || DEV_ONLY_METHODS.has(request.method))) throw new Error(`Method not found: ${request.method}`);
+  if (!isWalletSite && !isLocalDevOrigin(origin)) {
+    throw new Error(`${request.method} is only available to the wallet site and local development pages; dApps use midnight_connector`);
   }
   await loadNetwork();
   switch (request.method) {
@@ -93,10 +104,20 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ origin, request }): Pr
       return addressesFromKeys(await deriveKeys());
     case "midnight_sync":
       return sync();
+    case "midnight_getSummary": // What the home page shows. Reads snap state only, so it does not wait for a sync.
+      return (await getState<HomeSummary>(`homes.${NETWORK.networkId}`)) ?? null;
     case "midnight_transfer":
       return transfer(params as TransferParams);
+    case "midnight_estimateFee":
+      return estimateFee(params as TransferParams);
     case "midnight_registerDust":
       return registerDust();
+    case "midnight_deregisterDust":
+      return deregisterDust();
+    case "midnight_getHistory":
+      return history(Number(params.page ?? 0), Number(params.pageSize ?? 20));
+    case "midnight_getSyncProgress": // Answers during a sync: requests run at the same time, only wallet sessions wait.
+      return syncProgress();
     case "midnight_signData": {
       const bytes = decodeSignData(params.hex, "hex");
       const hex = String(params.hex);
@@ -126,7 +147,20 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ origin, request }): Pr
       if (typeof params.did !== "string") throw new Error("params.did is required");
       return resolveDid(NETWORK, params.did);
     case "midnight_getNetwork":
-      return { networkId: NETWORK.networkId, available: NETWORK_IDS };
+      return { networkId: NETWORK.networkId, available: NETWORK_IDS, endpoints: endpoints() };
+    case "midnight_setEndpoints": {
+      const next = validEndpointsPatch(params);
+      const current = endpoints();
+      const target = { indexerHttpUrl: next?.indexerHttpUrl ?? current.defaults.indexerHttpUrl, nodeWsUrl: next?.nodeWsUrl ?? current.defaults.nodeWsUrl };
+      if (target.indexerHttpUrl === current.indexerHttpUrl && target.nodeWsUrl === current.nodeWsUrl) return { ...current, changed: false };
+      await rejectUnlessConfirmed(`Change ${NETWORK.networkId} endpoints for ${origin}`, [
+        ["Indexer", target.indexerHttpUrl],
+        ["Node", target.nodeWsUrl],
+        ["Privacy", "The indexer sees your addresses. With fast shielded sync it also gets your viewing key and sees your shielded history."],
+      ]);
+      await setEndpoints(next);
+      return { ...endpoints(), changed: true };
+    }
     case "midnight_setNetwork": {
       const { networkId } = params;
       if (networkId === NETWORK.networkId) return { networkId, changed: false };

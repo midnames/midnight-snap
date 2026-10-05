@@ -134,7 +134,8 @@ function discover(timeoutMs: number): Promise<Eip1193 | null> {
 
 let cached: Eip1193 | null = null;
 
-async function provider(): Promise<Eip1193> {
+/** MetaMask's EIP-1193 provider. The wallet site uses it for the snap's wallet methods. */
+export async function provider(): Promise<Eip1193> {
   if (cached) return cached;
   const announced = await discover(300);
   const legacy = typeof window === 'undefined' ? undefined : window.ethereum;

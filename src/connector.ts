@@ -7,9 +7,9 @@ import { DustAddress } from "@midnightntwrk/wallet-sdk-address-format";
 import { base64, hex, utf8 } from "@scure/base";
 import { getState, NETWORK, REQUEST_BUDGET_MS, setState } from "./config";
 import { deriveKeys } from "./keys";
-import { addressesFromKeys, confirm, describe, finalize, getSyncOptions, parseRecipient, secretKeys, trace, ttl, withWallet, type Session } from "./wallet";
-import { decodeBigintJson, encodeBigintJson } from "./bigint-json";
+import { addressesFromKeys, confirm, describe, finalize, getSyncOptions, groupTransfers, historyEntries, secretKeys, trace, ttl, withWallet, type Session } from "./wallet";
 import { dust, tokenAmount } from "./units";
+import { decodeBigintJson, encodeBigintJson } from "./bigint-json";
 import { checkWithKeyMaterial, proveWithKeyMaterial } from "./proving/browserProving";
 
 type ErrorCode = "InternalError" | "Rejected" | "InvalidRequest" | "PermissionRejected" | "Disconnected";
@@ -80,10 +80,8 @@ export async function revokeGrant(origin: string): Promise<boolean> {
 type Output = { kind: "shielded" | "unshielded"; type: string; value: bigint; recipient: string };
 
 function toTransfers(outputs: Output[]) {
-  const group = (kind: Output["kind"]) =>
-    outputs.filter((o) => o.kind === kind).map((o) => ({ type: o.type, receiverAddress: parseRecipient(kind, o.recipient), amount: BigInt(o.value) }));
   try {
-    const t = (["shielded", "unshielded"] as const).map((type) => ({ type, outputs: group(type) })).filter((g) => g.outputs.length > 0);
+    const t = groupTransfers(outputs.map((o) => ({ kind: o.kind, token: o.type, amount: BigInt(o.value), address: o.recipient })));
     if (!t.length) throw new Error("no outputs");
     return t as any[];
   } catch (e) {
@@ -107,7 +105,7 @@ async function balance(origin: string, sealed: boolean, txHex: string, options: 
       : await s.facade.balanceUnboundTransaction(tx as any, secretKeys(s.keys), balanceOptions);
     const balancing = (recipe as any).balancingTransaction;
     const fee = payFees(options) ? dust(balancing ? await s.facade.calculateTransactionFee(balancing) : 0n) : "paid by the dApp, not this wallet";
-    if (!(await confirm(`Balance transaction for ${origin}`, [["Kind", sealed ? "sealed" : "unsealed"], ["Fee", fee]]))) {
+    if (!(await confirm(`Balance transaction for ${origin}`, [["Kind", sealed ? "sealed" : "unsealed"], ["Fee, at most", fee]]))) {
       await s.facade.revert(recipe).catch(() => undefined);
       throw rejected();
     }
@@ -120,6 +118,15 @@ async function track(s: Session, tx: { serialize(): Uint8Array }) {
   await s.facade.pendingTransactionsService.addPendingTransaction(tx as never);
   return hex.encode(tx.serialize());
 }
+
+// The history has no segment ids: 1 stands for the failed fallible part.
+const TX_STATUS = {
+  pending: { status: "pending" },
+  rejected: { status: "discarded" },
+  success: { status: "finalized", executionStatus: { 0: "Success" } },
+  partial: { status: "finalized", executionStatus: { 0: "Success", 1: "Failure" } },
+  failure: { status: "finalized", executionStatus: { 0: "Failure" } },
+} as const;
 
 const read = <T>(fn: (s: Session) => T | Promise<T>) => withWallet(REQUEST_BUDGET_MS - 20_000, async (s) => fn(s));
 
@@ -176,13 +183,9 @@ const handlers: Record<string, (origin: string, args: any[]) => Promise<unknown>
   async getTxHistory(_origin, [pageNumber, pageSize]) {
     if (!(pageSize > 0)) return [];
     return read(async ({ facade }) => {
-      const entries = (await facade.getAllFromTxHistory()) as any[];
-      const sorted = [...entries].sort((a, b) => (b.timestamp?.getTime?.() ?? 0) - (a.timestamp?.getTime?.() ?? 0));
+      const entries = historyEntries((await facade.getAllFromTxHistory()) as never);
       const start = Math.max(0, pageNumber) * pageSize;
-      return sorted.slice(start, start + pageSize).map((e) => ({
-        txHash: e.hash,
-        txStatus: e.lifecycle?.status === "PENDING" ? { status: "pending" } : { status: "finalized", executionStatus: { 0: e.status === "FAILURE" ? "Failure" : "Success" } },
-      }));
+      return entries.slice(start, start + pageSize).map((e) => ({ txHash: e.hash, txStatus: TX_STATUS[e.status] }));
     });
   },
 
@@ -192,7 +195,7 @@ const handlers: Record<string, (origin: string, args: any[]) => Promise<unknown>
       const recipe = await s.facade.transferTransaction(transfers, secretKeys(s.keys), { ttl: ttl(), payFees: payFees(options) });
       const fee = await s.facade.calculateTransactionFee(recipe.transaction);
       const rows = (outputs as Output[]).map((o, i) => [`Output ${i + 1}`, describeOutput(o)] as [string, string]);
-      if (!(await confirm(`Transfer requested by ${origin}`, [...rows, ["Fee", `${fee} Specks (DUST)`]]))) {
+      if (!(await confirm(`Transfer requested by ${origin}`, [...rows, ["Fee, at most", dust(fee)]]))) {
         await s.facade.revert(recipe).catch(() => undefined);
         throw rejected();
       }

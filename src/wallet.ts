@@ -2,7 +2,7 @@ import * as Rx from "rxjs";
 import { Cause, Runtime } from "effect";
 import { Box, Heading, Row, Text } from "@metamask/snaps-sdk/jsx";
 import * as ledger from "@midnightntwrk/ledger-v9";
-import { WalletFacade, WalletEntrySchema, type BalancingRecipe, type FacadeState } from "@midnightntwrk/wallet-sdk-facade";
+import { WalletFacade, WalletEntrySchema, type BalancingRecipe, type FacadeState, type WalletEntry } from "@midnightntwrk/wallet-sdk-facade";
 import { InMemoryTransactionHistoryStorage } from "@midnightntwrk/wallet-sdk-abstractions";
 import { ShieldedWallet } from "@midnightntwrk/wallet-sdk-shielded";
 import { UnshieldedWallet, PublicKey } from "@midnightntwrk/wallet-sdk-unshielded-wallet";
@@ -19,7 +19,7 @@ import { FastSyncDustWallet } from "./fastsync/dustWallet";
 import { isName, loadMidns } from "./midns";
 import { FastSyncShieldedWallet } from "./fastsync/shieldedWallet";
 import { recordSyncOrigin, type WalletSyncOrigin } from "./fastsync/syncOrigin";
-import { DEFAULT_PROVING_SERVER_URL, getState, NETWORK, PROVING_PARAMS_URL, REQUEST_BUDGET_MS, setState, type Network } from "./config";
+import { DEFAULT_PROVING_SERVER_URL, endpointUrl, getState, NETWORK, PROVING_PARAMS_URL, REQUEST_BUDGET_MS, setState, type Network } from "./config";
 import { deriveKeys, type Keys } from "./keys";
 import { provingService, provingConfig } from "./proving/browserProving";
 import { dust, night, tokenAmount } from "./units";
@@ -66,16 +66,7 @@ const pickOptions = (o: unknown): Partial<SyncOptions> => {
   return Object.fromEntries(Object.keys(DEFAULT_SYNC_OPTIONS).filter((k) => src[k] !== undefined).map((k) => [k, src[k]]));
 };
 
-const httpUrl = (name: string, value: unknown) => {
-  let url: URL;
-  try {
-    url = new URL(String(value).trim());
-  } catch {
-    throw new Error(`${name} is not a URL: "${String(value)}"`);
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`${name} must be an http(s) URL`);
-  return url.toString().replace(/\/$/, "");
-};
+const httpUrl = (name: string, value: unknown) => endpointUrl(name, value, ["http:", "https:"]);
 
 /** Any site can call `midnight_setSyncOptions`, so validate here. */
 export function validSyncOptionsPatch(patch: unknown): Partial<SyncOptions> {
@@ -124,6 +115,11 @@ let sessions = 0;
 
 /** True while a session runs or waits. Handlers with a 60 s limit must not wait for a long session. */
 export const isWalletBusy = () => sessions > 0;
+
+type Progress = { applied: string; highest: string; connected: boolean };
+/** The sync progress of the open session, for `midnight_getSyncProgress`. Null when no session syncs. */
+let progress: { startedAt: number; at: number; synced: boolean; shielded: Progress; unshielded: Progress; dust: Progress } | null = null;
+export const syncProgress = () => progress;
 
 /**
  * Open the wallet, sync, run `fn`, then save and close. One session at a time. A request that waits
@@ -236,6 +232,13 @@ async function session<T>(network: Network, deadline: number, fn: (s: Session) =
         .catch(() => saved?.pending),
     };
     await setState(`wallets.${network.networkId}`, wallet);
+    // Each operation changes balances, so the summary is new after each session. Only a sync looks up names.
+    const last = await Rx.firstValueFrom(facade.state()).catch(() => undefined);
+    if (last) {
+      const previous = await getState<HomeSummary>(`homes.${network.networkId}`);
+      await setState(`homes.${network.networkId}`, { ...homeSummary(last), names: previous?.names }).catch(() => undefined);
+    }
+    progress = null;
     await facade.stop().catch(() => undefined);
   }
 }
@@ -243,9 +246,14 @@ async function session<T>(network: Network, deadline: number, fn: (s: Session) =
 /** Wait for a synced state, or until the budget ends. Returns the last state. */
 export function syncFor(facade: WalletFacade, budgetMs: number) {
   const deadline = Date.now() + budgetMs;
+  const startedAt = Date.now();
   return Rx.firstValueFrom(
     facade.state().pipe(
       Rx.throttleTime(3_000, undefined, { leading: true, trailing: true }),
+      Rx.tap((s) => {
+        const { shielded, unshielded, dust } = progressOf(s);
+        progress = { startedAt, at: Date.now(), synced: s.isSynced, shielded, unshielded, dust };
+      }),
       Rx.filter((s) => s.isSynced || Date.now() > deadline),
       Rx.timeout({ first: Math.max(0, budgetMs) + 5_000, with: () => Rx.throwError(() => new Error("sync produced no state")) }),
     ),
@@ -342,32 +350,83 @@ export function addressesFromKeys(keys: Keys, networkId: string = NETWORK.networ
 const strings = (b: Record<string, bigint>) => Object.fromEntries(Object.entries(b).map(([k, v]) => [k, v.toString()]));
 const sum = (values: Iterable<bigint>) => [...values].reduce((a, v) => a + v, 0n);
 
-export function summarize({ shielded, unshielded, dust, isSynced }: FacadeState, keys: Keys, networkId: string) {
+function progressOf({ shielded, unshielded, dust }: FacadeState) {
   const sp = shielded.progress as any, up = unshielded.progress as any, dp = dust.progress as any;
+  return {
+    shielded: { applied: String(sp?.appliedIndex), highest: String(sp?.highestIndex), connected: !!sp?.isConnected },
+    unshielded: { applied: String(up?.appliedId), highest: String(up?.highestTransactionId), connected: !!up?.isConnected },
+    dust: { applied: String(dp?.appliedIndex), highest: String(dp?.highestIndex), connected: !!dp?.isConnected },
+  };
+}
+
+export function summarize(state: FacadeState, keys: Keys, networkId: string) {
+  const { shielded, unshielded, dust, isSynced } = state;
+  const p = progressOf(state);
   return {
     synced: isSynced,
     shielded: {
       address: addressesFromKeys(keys, networkId).shielded,
       balances: strings(shielded.balances),
       coins: shielded.availableCoins.length,
-      progress: { applied: String(sp?.appliedIndex), highest: String(sp?.highestIndex), connected: !!sp?.isConnected },
+      progress: p.shielded,
     },
     unshielded: {
       balances: strings(unshielded.balances),
       utxos: unshielded.availableCoins.length,
-      progress: { applied: String(up?.appliedId), highest: String(up?.highestTransactionId), connected: !!up?.isConnected },
+      progress: p.unshielded,
     },
     dust: {
       spendable: sum(dust.availableCoins.map((c) => c.generatedNow)).toString(),
       coins: dust.availableCoins.length,
-      progress: { applied: String(dp?.appliedIndex), highest: String(dp?.highestIndex), connected: !!dp?.isConnected },
+      progress: p.dust,
     },
     nativeToken: ledger.nativeToken().raw,
   };
 }
 
 /** What the home page shows, in snap state at `homes.<networkId>`. */
-export type HomeSummary = { at: number; synced: boolean; unshielded: string; shielded: string; dust: string; names?: Array<{ name: string; did?: string }> };
+export type HomeSummary = {
+  at: number;
+  synced: boolean;
+  unshielded: string;
+  shielded: string;
+  dust: string;
+  /** Balance of each token type (raw hex) of each kind. Absent in summaries from older snap versions. */
+  tokens?: { unshielded: Record<string, string>; shielded: Record<string, string> };
+  /** DUST generation. Amounts in Specks. Absent in summaries from older snap versions. */
+  dustDetail?: {
+    generatedNow: string;
+    maxCap: string;
+    coins: Array<{ generatedNow: string; maxCap: string; maxCapReachedAt: string; decaying: boolean }>;
+    /** The NIGHT UTXOs. Registered UTXOs generate DUST. */
+    night: Array<{ value: string; registered: boolean }>;
+  };
+  names?: Array<{ name: string; did?: string }>;
+};
+
+/** The summary of a wallet state, without names. */
+export function homeSummary(state: FacadeState): Omit<HomeSummary, "names"> {
+  const coins = state.dust.availableCoins;
+  return {
+    at: Date.now(),
+    synced: state.isSynced,
+    shielded: sum(Object.values(state.shielded.balances)).toString(),
+    unshielded: sum(Object.values(state.unshielded.balances)).toString(),
+    dust: sum(coins.map((c) => c.generatedNow)).toString(),
+    tokens: { unshielded: strings(state.unshielded.balances), shielded: strings(state.shielded.balances) },
+    dustDetail: {
+      generatedNow: sum(coins.map((c) => c.generatedNow)).toString(),
+      maxCap: sum(coins.map((c) => c.maxCap)).toString(),
+      coins: coins.map((c) => ({
+        generatedNow: c.generatedNow.toString(),
+        maxCap: c.maxCap.toString(),
+        maxCapReachedAt: c.maxCapReachedAt.toISOString(),
+        decaying: c.dtime !== undefined,
+      })),
+      night: state.unshielded.availableCoins.map((u) => ({ value: u.utxo.value.toString(), registered: u.meta.registeredForDustGeneration })),
+    },
+  };
+}
 
 // ---- operations ----
 
@@ -385,15 +444,8 @@ async function syncOnce() {
       REQUEST_BUDGET_MS - 20_000,
       async ({ keys, state, network }) => {
         const summary = summarize(state, keys, network.networkId);
-        const home: HomeSummary = {
-          at: Date.now(),
-          synced: summary.synced,
-          shielded: sum(Object.values(state.shielded.balances)).toString(),
-          unshielded: sum(Object.values(state.unshielded.balances)).toString(),
-          dust: summary.dust.spendable,
-          names: await namesOf(keys, network),
-        };
-        await setState(`homes.${network.networkId}`, home).catch(() => undefined);
+        // The session saves the summary when it closes, with the names of the last summary.
+        await setState(`homes.${network.networkId}`, { ...homeSummary(state), names: await namesOf(keys, network) }).catch(() => undefined);
         return { ...summary, elapsedMs: Date.now() - t0 };
       },
       { requireSynced: false },
@@ -418,78 +470,228 @@ async function namesOf(keys: Keys, network: Network) {
   }
 }
 
-/** `to` is an address, or a MidNS name such as `alice.night`. */
-export type TransferParams = { type: "shielded" | "unshielded"; to: string; amount: string; token?: string };
+/** One output of a transfer. `to` is an address, or a MidNS name such as `alice.night`. `token` is a raw token type. */
+export type TransferOutput = { type: "shielded" | "unshielded"; to: string; amount: string; token?: string };
+/** One output, or `outputs` for several outputs in one transaction. */
+export type TransferParams = TransferOutput | { outputs: TransferOutput[] };
+
+type Output = { kind: "shielded" | "unshielded"; token: string; amount: bigint; address: string; name?: string };
+
+/** The transfers of `WalletFacade.transferTransaction`: one group for each kind. */
+export function groupTransfers(outputs: Array<Omit<Output, "name">>) {
+  return (["shielded", "unshielded"] as const)
+    .map((type) => ({
+      type,
+      outputs: outputs.filter((o) => o.kind === type).map((o) => ({ type: o.token, receiverAddress: parseRecipient(type, o.address), amount: o.amount })),
+    }))
+    .filter((g) => g.outputs.length > 0);
+}
+
+/** Validate the outputs and resolve names before the wallet opens: a name that does not resolve must not cost a sync. */
+async function resolveOutputs(p: TransferParams): Promise<Output[]> {
+  const list = p && typeof p === "object" && "outputs" in p ? p.outputs : [p];
+  if (!Array.isArray(list) || list.length === 0) throw new Error("params.outputs must be a non-empty array");
+  const native = ledger.nativeToken().raw;
+  let midns: Awaited<ReturnType<typeof loadMidns>> | undefined;
+  const out: Output[] = [];
+  for (const [i, o] of list.entries()) {
+    const at = list.length > 1 ? `output ${i + 1}: ` : "";
+    if (o?.type !== "shielded" && o?.type !== "unshielded") throw new Error(`${at}type must be 'shielded' | 'unshielded'`);
+    if (!/^[0-9]+$/.test(String(o.amount)) || BigInt(o.amount) <= 0n) throw new Error(`${at}amount must be a whole number > 0`);
+    const token = String(o.token ?? native).toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(token)) throw new Error(`${at}token must be 32 bytes of hex`);
+    const to = String(o.to ?? "").trim();
+    let address = to;
+    let name: string | undefined;
+    if (isName(to.toLowerCase())) {
+      name = to.toLowerCase();
+      const record = (midns ??= await loadMidns(NETWORK)).resolve(name);
+      const resolved = o.type === "shielded" ? record.shielded : record.unshielded;
+      if (!resolved) throw new Error(`${at}${name} has no ${o.type} address (its target is a ${record.target.kind} ${record.target.kind === "contract" ? "address" : "key"})`);
+      address = resolved;
+    }
+    try {
+      parseRecipient(o.type, address);
+    } catch (e) {
+      throw new Error(`${at}${(e as Error).message}`);
+    }
+    out.push({ kind: o.type, token, amount: BigInt(o.amount), address, name });
+  }
+  return out;
+}
+
+/** Build the transfer and its fee. The recipe books coins: revert it if it is not submitted. */
+async function buildTransfer(s: Session, outputs: Output[]) {
+  const recipe = await s.facade.transferTransaction(groupTransfers(outputs) as any, secretKeys(s.keys), { ttl: ttl(), payFees: true });
+  try {
+    return { recipe, fee: await s.facade.calculateTransactionFee(recipe.transaction) };
+  } catch (e) {
+    await s.facade.revert(recipe).catch(() => undefined);
+    throw e;
+  }
+}
+
+/**
+ * Prove and submit. On failure, release the coins that the recipe or the transaction booked: the session saves state
+ * also after an error, and the SDK releases a booked coin only on revert or when its spend is on chain.
+ * `sign: false` for recipes that are signed when they are made, such as DUST registrations.
+ */
+async function proveAndSubmit(s: Session, recipe: BalancingRecipe, { sign = true } = {}) {
+  const tx = sign
+    ? await finalize(s, recipe)
+    : await s.facade.finalizeRecipe(recipe).catch(async (e) => {
+        await s.facade.revert(recipe).catch(() => undefined);
+        throw e;
+      });
+  const txId = await s.facade.submitTransaction(tx).catch(async (e) => {
+    await s.facade.revertTransaction(tx).catch(() => undefined);
+    throw e;
+  });
+  await trace(`submitted ${txId}`);
+  return txId;
+}
 
 export async function transfer(p: TransferParams) {
-  if (p?.type !== "shielded" && p?.type !== "unshielded") throw new Error("params.type must be 'shielded' | 'unshielded'");
-  const amount = BigInt(p.amount);
-  if (amount <= 0n) throw new Error("amount must be > 0");
-  const native = ledger.nativeToken().raw;
-  const token = p.token ?? native;
-  // Resolve a name before the wallet opens: a name that does not resolve must not cost a sync.
-  const name = isName(String(p.to).trim().toLowerCase()) ? String(p.to).trim().toLowerCase() : undefined;
-  let to = p.to;
-  if (name) {
-    const record = (await loadMidns(NETWORK)).resolve(name);
-    const resolved = p.type === "shielded" ? record.shielded : record.unshielded;
-    if (!resolved) throw new Error(`${name} has no ${p.type} address (its target is a ${record.target.kind} ${record.target.kind === "contract" ? "address" : "key"})`);
-    to = resolved;
-  }
-  const receiverAddress = parseRecipient(p.type, to);
+  const outputs = await resolveOutputs(p);
   const t0 = Date.now();
-  await trace(`transfer start ${p.type} ${amount} -> ${(name ?? to).slice(0, 24)}`);
+  await trace(`transfer start, ${outputs.length} output(s), first to ${(outputs[0]!.name ?? outputs[0]!.address).slice(0, 24)}`);
 
   return withWallet(REQUEST_BUDGET_MS - 90_000, async (s) => {
-    const recipe = await s.facade.transferTransaction(
-      [{ type: p.type, outputs: [{ type: token, receiverAddress, amount }] } as any],
-      secretKeys(s.keys),
-      { ttl: ttl(), payFees: true },
-    );
+    const { recipe, fee } = await buildTransfer(s, outputs);
     await trace("recipe built");
-    const fee = await s.facade.calculateTransactionFee(recipe.transaction);
     const ok = await confirm(`Send on Midnight ${s.network.networkId}`, [
-      ["Kind", p.type],
-      ...(name ? ([["To", name], ["Address", to]] as Array<[string, string]>) : ([["To", to]] as Array<[string, string]>)),
-      ["Amount", `${amount} (${token === native ? "NIGHT atomic units" : token})`],
-      ["Fee", `${fee} Specks (DUST)`],
+      ...outputs.flatMap((o, i): Array<[string, string]> => [
+        [outputs.length > 1 ? `Output ${i + 1}` : "Kind", o.kind],
+        ["To", o.name ? `${o.name} (${o.address})` : o.address],
+        ["Amount", tokenAmount(o.amount, o.token)],
+      ]),
+      // A bound: the SDK prices the transaction for a fee rise over `feeBlocksMargin` blocks. The paid fee is lower.
+      ["Fee, at most", dust(fee)],
     ]);
     if (!ok) {
       await s.facade.revert(recipe).catch(() => undefined);
       throw new Error("user rejected");
     }
     await trace("confirmed by user");
-    const tx = await finalize(s, recipe);
-    const txId = await s.facade.submitTransaction(tx).catch(async (e) => {
-      await s.facade.revertTransaction(tx).catch(() => undefined); // Release the booked coins, as the connector's submit does.
-      throw e;
-    });
-    await trace(`submitted ${txId}`);
-    return { txId, to, fee: fee.toString(), elapsedMs: Date.now() - t0 };
+    const txId = await proveAndSubmit(s, recipe);
+    return { txId, to: outputs.map((o) => o.address), fee: fee.toString(), elapsedMs: Date.now() - t0 };
+  });
+}
+
+/**
+ * The fee of a transfer, at most, without a dialog: the number that the confirmation shows. Opens the wallet to build
+ * the transaction, then releases its coins.
+ */
+export async function estimateFee(p: TransferParams) {
+  const outputs = await resolveOutputs(p);
+  return withWallet(REQUEST_BUDGET_MS - 30_000, async (s) => {
+    const { recipe, fee } = await buildTransfer(s, outputs);
+    await s.facade.revert(recipe).catch(() => undefined);
+    return { fee: fee.toString() };
   });
 }
 
 /** Register the unregistered NIGHT UTXOs for DUST generation. Fees are paid in DUST. */
 export async function registerDust() {
   const t0 = Date.now();
-  return withWallet(REQUEST_BUDGET_MS - 100_000, async ({ facade, keys, state }) => {
-    const utxos = state.unshielded.availableCoins;
+  return withWallet(REQUEST_BUDGET_MS - 100_000, async (s) => {
+    const utxos = s.state.unshielded.availableCoins;
     if (utxos.length === 0) throw new Error("no NIGHT UTXOs; fund the unshielded address first");
     const unregistered = utxos.filter((u) => !u.meta.registeredForDustGeneration);
     if (unregistered.length === 0) return { registered: 0, alreadyRegistered: utxos.length, elapsedMs: Date.now() - t0 };
 
-    const { fee } = await facade.estimateRegistration(unregistered);
+    const { fee } = await s.facade.estimateRegistration(unregistered);
     const ok = await confirm("Register NIGHT for DUST generation", [
       ["UTXOs", String(unregistered.length)],
       ["NIGHT", night(sum(unregistered.map((u) => u.utxo.value)))],
       ["Fee", dust(fee)],
     ]);
     if (!ok) throw new Error("user rejected");
-    await facade.waitForGeneratedDust(unregistered, fee, { timeoutMs: 60_000 });
-    const recipe = await facade.registerNightUtxosForDustGeneration(unregistered, keys.unshieldedKeystore.getPublicKey(), keys.unshieldedKeystore.signDataAsync);
-    const txId = await facade.submitTransaction(await facade.finalizeRecipe(recipe));
+    await s.facade.waitForGeneratedDust(unregistered, fee, { timeoutMs: 60_000 });
+    const recipe = await s.facade.registerNightUtxosForDustGeneration(unregistered, s.keys.unshieldedKeystore.getPublicKey(), s.keys.unshieldedKeystore.signDataAsync);
+    const txId = await proveAndSubmit(s, recipe, { sign: false });
     return { txId, registered: unregistered.length, fee: fee.toString(), elapsedMs: Date.now() - t0 };
   });
+}
+
+/** Stop DUST generation for the registered NIGHT UTXOs. Their DUST then decays. */
+export async function deregisterDust() {
+  const t0 = Date.now();
+  return withWallet(REQUEST_BUDGET_MS - 100_000, async (s) => {
+    const registered = s.state.unshielded.availableCoins.filter((u) => u.meta.registeredForDustGeneration);
+    if (registered.length === 0) return { deregistered: 0, elapsedMs: Date.now() - t0 };
+    const recipe = await s.facade.deregisterFromDustGeneration(registered as any, s.keys.unshieldedKeystore.getPublicKey(), s.keys.unshieldedKeystore.signDataAsync);
+    const fee = await s.facade.calculateTransactionFee(recipe.transaction).catch(() => undefined);
+    const ok = await confirm("Stop DUST generation", [
+      ["UTXOs", String(registered.length)],
+      ["NIGHT", night(sum(registered.map((u) => u.utxo.value)))],
+      ["Effect", "Your DUST stops growing and decays to zero. Transactions need DUST for fees."],
+      ["Fee, at most", fee === undefined ? "unknown" : dust(fee)],
+    ]);
+    if (!ok) {
+      await s.facade.revert(recipe).catch(() => undefined);
+      throw new Error("user rejected");
+    }
+    const txId = await proveAndSubmit(s, recipe, { sign: false });
+    return { txId, deregistered: registered.length, fee: fee?.toString(), elapsedMs: Date.now() - t0 };
+  });
+}
+
+/** One transaction of the history, with the change of each token balance of this wallet (negative: sent). */
+export type HistoryEntry = {
+  hash: string;
+  status: "pending" | "success" | "partial" | "failure" | "rejected";
+  /** ISO time: of the block, of the submission, or of the rejection. */
+  at: string | null;
+  /** Specks (DUST). */
+  fee: string | null;
+  unshielded: Record<string, string>;
+  shielded: Record<string, string>;
+};
+
+const deltas = (plus: ReadonlyArray<{ value: bigint; type: string }>, minus: ReadonlyArray<{ value: bigint; type: string }>) => {
+  const out: Record<string, bigint> = {};
+  for (const c of plus) out[c.type] = (out[c.type] ?? 0n) + c.value;
+  for (const c of minus) out[c.type] = (out[c.type] ?? 0n) - c.value;
+  return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== 0n).map(([k, v]) => [k, v.toString()]));
+};
+
+/** History entries of the SDK, newest first. */
+export function historyEntries(all: readonly WalletEntry[]): HistoryEntry[] {
+  const time = (e: WalletEntry) => {
+    const l = e.lifecycle as any;
+    return (l.finalizedBlock?.timestamp ?? l.submittedAt ?? l.rejectedAt ?? e.timestamp) as Date | undefined;
+  };
+  return all
+    .map((e): HistoryEntry => {
+      const u = e.unshielded, z = e.shielded;
+      const status =
+        e.lifecycle.status === "finalized"
+          ? ({ SUCCESS: "success", PARTIAL_SUCCESS: "partial", FAILURE: "failure" } as const)[e.status ?? "SUCCESS"]
+          : e.lifecycle.status;
+      return {
+        hash: e.hash,
+        status,
+        at: time(e)?.toISOString() ?? null,
+        fee: e.fees === undefined || e.fees === null ? null : e.fees.toString(),
+        unshielded: deltas(
+          (u?.createdUtxos ?? []).map((c) => ({ value: c.value, type: c.tokenType })),
+          (u?.spentUtxos ?? []).map((c) => ({ value: c.value, type: c.tokenType })),
+        ),
+        shielded: deltas(z?.receivedCoins ?? [], z?.spentCoins ?? []),
+      };
+    })
+    .sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+}
+
+/** The transaction history in the saved wallet state, newest first. Does not open the wallet. */
+export async function history(page = 0, pageSize = 20): Promise<{ total: number; entries: HistoryEntry[] }> {
+  const saved = await getState<Persisted>(`wallets.${NETWORK.networkId}`);
+  if (!saved?.txHistory) return { total: 0, entries: [] };
+  const entries = historyEntries((await InMemoryTransactionHistoryStorage.restore(saved.txHistory as any, WalletEntrySchema as any).getAll()) as WalletEntry[]);
+  const size = Math.min(Math.max(1, Math.floor(pageSize)), 100);
+  const start = Math.max(0, Math.floor(page)) * size;
+  return { total: entries.length, entries: entries.slice(start, start + size) };
 }
 
 /**

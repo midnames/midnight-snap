@@ -28,7 +28,7 @@ Until then, use MetaMask Flask.
 | `connector/` | `@midnames/midnight-snap-connector`, the package for dApps. Refer to [connector/README.md](connector/README.md). |
 | `bridge-extension/` | A Chrome extension that adds the connector to all pages, for tests with dApps that you cannot change. |
 | `scripts/` | Proving params mirror, fast sync check, proving benchmark. |
-| `test.html` | Manual test page for MetaMask Flask. |
+| `wallet/` | The wallet site: a React page that uses the snap as a wallet. Refer to [Wallet site](#wallet-site). |
 
 ## Build and test
 
@@ -46,13 +46,12 @@ pnpm --filter @midnames/midnight-snap-connector test
 ## Try it in MetaMask Flask
 
 1. Install MetaMask Flask.
-2. Run `pnpm build:dev` and build the connector (see above). `test.html` uses the development RPC methods.
-3. Run `pnpm serve`. The snap id is `local:http://localhost:8093`.
-4. In the repository root, run `python3 -m http.server 8095`. Do not open `test.html` as a file:
-   the browser does not load modules from `file://`.
-5. Open `http://localhost:8095/test.html` and click **connect**. MetaMask asks you to install the snap.
+2. Run `pnpm build:dev && pnpm serve`. The snap id is `local:http://localhost:8093`.
+3. Run `pnpm --filter midnight-snap-wallet dev` and open `http://127.0.0.1:5176`, the [wallet site](#wallet-site).
+4. Click **Connect MetaMask**. MetaMask asks you to install the snap.
 
-After a rebuild, click **reinstall snap**. The connector does not reinstall a snap that is installed.
+After a rebuild, remove the snap in the MetaMask settings, then connect again. The site does not reinstall a snap
+that is installed.
 
 ## Home page
 
@@ -80,6 +79,11 @@ page 60 s for each event, and a sync can take longer. The buttons start the netw
 `SNAP_NETWORK` sets the default network at build time. To change the network, use the home page or
 `midnight_setNetwork`. The user must confirm the change. The snap keeps wallet state, the home page
 summary and dApp connections separately for each network.
+
+`midnight_setEndpoints` replaces the indexer and node URLs of the active network. The indexer WebSocket URL is the
+indexer URL with `ws(s)` and `/ws`. The user must confirm the change, because the indexer sees the addresses of the
+wallet, and with fast shielded sync it also gets the viewing key. The new endpoints must serve the same chain: the
+saved wallet state stays.
 
 ## Names (MidNS)
 
@@ -174,24 +178,63 @@ A site must call `connect` first. `connect` asks the user one time for each site
 transaction and each `signData` asks again. `signData` signs
 `midnight_signed_message:<byte length>:` followed by the data, as the specification requires.
 
-## Development RPC methods
+## Wallet site
 
-These methods are only in development builds (`pnpm build:dev`). A production build (`pnpm build`,
-also before `npm publish`) answers "Method not found". They answer only pages on `localhost`,
-`127.0.0.1` or `[::1]`. The home page gives users the same functions.
+`wallet/` is a site that uses the snap as a wallet. It calls the wallet RPC methods below with `wallet_invokeSnap`,
+not the dApp connector. It has:
+
+- The balance of each token, sync with progress, and the activity (transaction history).
+- Send: several transfers in one transaction, any token of the wallet, to addresses or names, with a fee estimate.
+  NIGHT amounts are in NIGHT (6 decimals), DUST in DUST (15 decimals). Other tokens are in units.
+- Receive addresses, the MidNS names of the account, and DUST: generation, NIGHT registration and deregistration.
+- The network and its endpoints, connected sites, sync and proving settings, and reset.
+
+```sh
+pnpm build:dev && pnpm serve                 # the snap, at local:http://localhost:8093
+pnpm --filter midnight-snap-wallet dev       # http://127.0.0.1:5176
+```
+
+Use `?snap=<snap id>` or `VITE_SNAP_ID` to select another snap. A production site build
+(`pnpm --filter midnight-snap-wallet build`) uses `npm:@midnames/midnight-snap`. A production snap answers the site
+only if the snap was built with its origin. `npm publish` refuses to build the snap without it:
+
+```sh
+SNAP_WALLET_ORIGIN=https://wallet.midnames.com npm publish
+```
+
+The site origin can read the addresses, the balances, the history and the connected sites, estimate fees and start
+a sync, with no dialog. Transfers, DUST registration and deregistration, `signData`, network and endpoint changes,
+proving changes and reset show a MetaMask dialog, as for localhost.
+
+Each wallet operation saves the summary that `midnight_getSummary` returns: balances, tokens and DUST generation.
+Only a sync looks up the MidNS names again. The summary and the history are from the last wallet operation, not
+live.
+
+## Wallet RPC methods
+
+These methods answer the wallet site (`SNAP_WALLET_ORIGIN`) in all builds. In development builds
+(`pnpm build:dev`) they also answer pages on `localhost`, `127.0.0.1` or `[::1]`. Other origins get an error.
+`midnight_diag` and `midnight_trace` are only in development builds. The home page gives
+users the same functions.
 
 | Method | Params | Confirmation |
 |---|---|---|
 | `ping` | | no |
 | `midnight_getAccounts` | | no |
 | `midnight_sync` | | no |
-| `midnight_transfer` | `{ type: "shielded" \| "unshielded", to, amount, token? }`; `to` can be a name | yes |
+| `midnight_getSyncProgress` | | no |
+| `midnight_getSummary` | | no |
+| `midnight_getHistory` | `{ page?, pageSize? }` | no |
+| `midnight_transfer` | `{ type: "shielded" \| "unshielded", to, amount, token? }` or `{ outputs: [...] }`; `to` can be a name | yes |
+| `midnight_estimateFee` | same as `midnight_transfer`; returns the maximum fee, as the confirmation shows | no |
 | `midnight_resolveName` | `{ name }` | no |
 | `midnight_resolveDid` | `{ did }` | no |
 | `midnight_registerDust` | | yes |
+| `midnight_deregisterDust` | | yes |
 | `midnight_signData` | `{ hex }` | yes |
 | `midnight_getNetwork` | | no |
 | `midnight_setNetwork` | `{ networkId }` | yes |
+| `midnight_setEndpoints` | `{ indexerHttpUrl?, nodeWsUrl? }`; an empty value restores the default | yes |
 | `midnight_getSites` | | no |
 | `midnight_revokeSite` | `{ origin }` | no |
 | `midnight_getSyncOptions` | | no |
@@ -208,7 +251,7 @@ also before `npm publish`) answers "Method not found". They answer only pages on
 | `wallets.<networkId>` | Serialized wallets, dust anchor, transaction history. |
 | `homes.<networkId>` | The balances and the MidNS names that the home page shows. |
 | `syncOrigins.<networkId>` | The origin from `midnight_recordSyncOrigin`. |
-| `settings` | `networkId` and the sync options that the user set. |
+| `settings` | `networkId`, the sync options that the user set, and `endpoints.<networkId>`. |
 | `origins` | Connected sites: origin to network id. |
 | `trace` | The last 40 progress lines. |
 | `params` (unencrypted) | Cache of proving keys. |

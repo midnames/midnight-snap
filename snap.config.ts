@@ -37,6 +37,8 @@ const config: SnapConfig = {
         SNAP_NETWORK: JSON.stringify(process.env.SNAP_NETWORK ?? "stagenet"),
         // The development RPC methods are only in builds with SNAP_DEV_RPC=1 (pnpm build:dev, pnpm test).
         SNAP_DEV_RPC: JSON.stringify(process.env.SNAP_DEV_RPC === "1"),
+        // The wallet site's origin. It gets the wallet RPC methods also in production builds.
+        SNAP_WALLET_ORIGIN: JSON.stringify(process.env.SNAP_WALLET_ORIGIN ?? ""),
       }),
     ];
     return cfg;

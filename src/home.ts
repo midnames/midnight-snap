@@ -15,7 +15,9 @@ const ago = (t: number) => {
   return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`;
 };
 
-export const nightOf = (home: HomeSummary, kind: "shielded" | "unshielded") => home[kind];
+/** A summary from an older snap version has only the sum of all tokens. */
+export const nightOf = (home: HomeSummary, kind: "shielded" | "unshielded") =>
+  home.tokens ? (home.tokens[kind][ledger.nativeToken().raw] ?? "0") : home[kind];
 
 /** The full page. `status` is the message below the heading. */
 async function page(status?: string) {

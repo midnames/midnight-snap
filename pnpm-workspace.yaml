@@ -1,5 +1,6 @@
 packages:
   - connector
+  - wallet
 # One ledger wasm in the bundle: the wallet-sdk betas pull slightly different rc's.
 overrides:
   '@midnightntwrk/ledger-v9': 1.0.0-rc.3

@@ -20,7 +20,8 @@
     "build:dev": "SNAP_DEV_RPC=1 mm-snap build",
     "serve": "mm-snap serve",
     "watch": "SNAP_DEV_RPC=1 mm-snap watch",
-    "test": "SNAP_DEV_RPC=1 mm-snap build && jest",
+    "test": "m=$(mktemp) && cp snap.manifest.json $m && SNAP_DEV_RPC=1 SNAP_WALLET_ORIGIN=https://wallet.example mm-snap build && jest; s=$?; cp $m snap.manifest.json; rm -f $m; exit $s",
+
     "check:fastsync": "node scripts/check-fastsync.mjs",
     "prepublishOnly": "test -n \"$SNAP_WALLET_ORIGIN\" || { echo 'Set SNAP_WALLET_ORIGIN to the wallet site origin' >&2; exit 1; } && mm-snap build"
   },
