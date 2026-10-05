@@ -7,6 +7,7 @@ type Handler = ((ev: any) => void) | null;
 export const wsStats = { constructed: 0, opened: 0, openErrors: [] as string[], sent: 0, sendErrors: [] as string[], events: { open: 0, message: 0, close: 0 }, unknownIdEvents: 0, lastError: "" };
 const byId = new Map<string, SnapWebSocket>();
 const pending = new Map<string, WebSocketEvent[]>(); // Events that came before the id was known.
+const retired = new Set<string>(); // Sockets that this side closed. MetaMask's late events for them are dropped.
 
 export class SnapWebSocket {
   static readonly CONNECTING = 0;
@@ -54,6 +55,7 @@ export class SnapWebSocket {
         if (this.readyState >= 2) {
           // close() was called before the socket opened.
           void snap.request({ method: "snap_closeWebSocket", params: { id: this.id } }).catch(() => undefined);
+          retired.add(this.id);
           this.finishClose(1000, "", true);
           return;
         }
@@ -89,11 +91,15 @@ export class SnapWebSocket {
     this.readyState = 2;
     if (this.id === undefined) return;
     void snap.request({ method: "snap_closeWebSocket", params: { id: this.id } }).catch(() => undefined);
-    // If MetaMask sends no close event, send one after 1 s so that consumers do not wait.
-    setTimeout(() => { if (this.readyState !== 3) this.finishClose(code ?? 1000, reason ?? "", true); }, 1000);
+    // Close now, do not wait for MetaMask's close event. @polkadot/rpc-provider stays "connected" until `onclose`, and a
+    // node client that disconnects and connects again sends its next request on this socket. MetaMask's close event
+    // arrives some seconds later (code 1005), and then the provider fails every request in flight.
+    retired.add(this.id);
+    queueMicrotask(() => this.finishClose(code ?? 1000, reason ?? "", true));
   }
 
   private finishClose(code: number, reason: string, wasClean: boolean) {
+    if (this.readyState === 3) return;
     this.readyState = 3;
     if (this.id) byId.delete(this.id);
     this.emit("close", { type: "close", code, reason, wasClean });
@@ -126,7 +132,9 @@ export function dispatchWebSocketEvent(ev: WebSocketEvent) {
   wsStats.events[ev.type]++;
   if (ev.type === "open") wsStats.opened++;
   const ws = byId.get(ev.id);
-  if (ws) ws.handle(ev);
+  if (retired.has(ev.id)) {
+    if (ev.type === "close") retired.delete(ev.id);
+  } else if (ws) ws.handle(ev);
   else { wsStats.unknownIdEvents++; pending.set(ev.id, [...(pending.get(ev.id) ?? []), ev]); }
 }
 
