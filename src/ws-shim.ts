@@ -95,7 +95,8 @@ export class SnapWebSocket {
     // node client that disconnects and connects again sends its next request on this socket. MetaMask's close event
     // arrives some seconds later (code 1005), and then the provider fails every request in flight.
     retired.add(this.id);
-    queueMicrotask(() => this.finishClose(code ?? 1000, reason ?? "", true));
+    // The snap realm has no `queueMicrotask`.
+    void Promise.resolve().then(() => this.finishClose(code ?? 1000, reason ?? "", true));
   }
 
   private finishClose(code: number, reason: string, wasClean: boolean) {

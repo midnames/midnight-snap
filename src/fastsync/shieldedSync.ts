@@ -187,7 +187,25 @@ export const makeShieldedFastSyncService = (
           Effect.sync(() => makeSocket(indexerClientConnection.indexerWsUrl ?? wsUrlFor(httpUrl))),
           (socket) => Effect.sync(() => socket.close()),
         ).pipe(
-          Effect.map((socket) => Stream.fromAsyncIterable(fastUpdates(state, secretKeys, socket), (cause) => syncError("Shielded fast sync failed", cause))),
+          Effect.map((socket) => {
+            const updates = fastUpdates(state, secretKeys, socket);
+            const count = (r: IteratorResult<ShieldedFastSyncUpdate>) => {
+              if (!r.done) applied++;
+              return r;
+            };
+            // The stream stops with `return`, and a generator runs `return` only after its pending `next`, which waits
+            // for the indexer's next message (up to 30 s). Closing the socket first ends the pending `next` at once.
+            const stoppable: AsyncIterable<ShieldedFastSyncUpdate> = {
+              [Symbol.asyncIterator]: () => ({
+                next: () => updates.next().then(count),
+                return: (value?: unknown) => {
+                  socket.close();
+                  return updates.return(value as undefined);
+                },
+              }),
+            };
+            return Stream.fromAsyncIterable(stoppable, (cause) => syncError("Shielded fast sync failed", cause));
+          }),
         ),
       );
       return fastPath.pipe(
