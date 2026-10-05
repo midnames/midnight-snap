@@ -1,4 +1,5 @@
 import * as Rx from "rxjs";
+import { Cause, Runtime } from "effect";
 import { Box, Heading, Row, Text } from "@metamask/snaps-sdk/jsx";
 import * as ledger from "@midnightntwrk/ledger-v9";
 import { WalletFacade, WalletEntrySchema, type BalancingRecipe, type FacadeState } from "@midnightntwrk/wallet-sdk-facade";
@@ -262,9 +263,17 @@ export const confirm = (title: string, rows: Array<[string, string]>) =>
 export const secretKeys = (keys: Keys) => ({ shieldedSecretKeys: keys.shieldedSecretKeys, dustSecretKey: keys.dustSecretKey });
 export const ttl = () => new Date(Date.now() + 60 * 60_000);
 
+/** True if any intent acts on a deployed contract: a `ContractCall` or a `MaintenanceUpdate`. Only a `ContractDeploy` has an initial state. */
+const usesAContract = (tx: unknown) =>
+  [...((tx as { intents?: Map<unknown, { actions?: unknown[] }> }).intents?.values() ?? [])].some((intent) =>
+    (intent.actions ?? []).some((action) => !!action && typeof action === "object" && !("initialState" in action)),
+  );
+
 /** Every part of an error: a ledger or effect error often has an empty `message` and keeps the reason in `cause`. */
 export function describe(e: unknown, depth = 0): string {
   if (e === null || e === undefined) return String(e);
+  // An effect FiberFailure keeps the reason in a symbol-keyed cause.
+  if (Runtime.isFiberFailure(e)) return describe(Cause.squash(e[Runtime.FiberFailureCauseId]), depth);
   const error = e as { name?: string; message?: string; cause?: unknown; errors?: unknown[] };
   const head = [error.name, error.message || (depth === 0 ? String(e) : undefined)].filter(Boolean).join(": ");
   const nested = depth < 3 ? [error.cause, ...(error.errors ?? [])].filter((c) => c !== undefined && c !== null).map((c) => describe(c, depth + 1)) : [];
@@ -282,10 +291,17 @@ export async function finalize({ facade, keys }: Session, recipe: BalancingRecip
     await trace("signed");
     const tx = await facade.finalizeRecipe(signed);
     await trace("proved");
-    await facade.validateTransaction(tx, {
-      flags: { enforceBalancing: true, verifySignatures: true, enforceLimits: true },
-      ...((recipe as any).blockData ? { blockData: (recipe as any).blockData } : {}),
-    } as any);
+    // The SDK validates against `LedgerState.blank`, which holds no contracts, so a transaction that calls or updates a
+    // deployed contract always fails there with "call to non-existant contract". Such a transaction is for the node to judge.
+    if (usesAContract(tx)) {
+      await trace("validation skipped: the transaction uses a deployed contract");
+    } else {
+      await facade.validateTransaction(tx, {
+        flags: { enforceBalancing: true, verifySignatures: true, enforceLimits: true },
+        ...((recipe as any).blockData ? { blockData: (recipe as any).blockData } : {}),
+      } as any);
+      await trace("validated");
+    }
     return tx;
   } catch (e) {
     await trace(`finalize failed, coins released: ${describe(e)}`);

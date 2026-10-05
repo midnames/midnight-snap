@@ -7,7 +7,7 @@ import { DustAddress } from "@midnightntwrk/wallet-sdk-address-format";
 import { base64, hex, utf8 } from "@scure/base";
 import { getState, NETWORK, REQUEST_BUDGET_MS, setState } from "./config";
 import { deriveKeys } from "./keys";
-import { addressesFromKeys, confirm, finalize, getSyncOptions, parseRecipient, secretKeys, trace, ttl, withWallet, type Session } from "./wallet";
+import { addressesFromKeys, confirm, describe, finalize, getSyncOptions, parseRecipient, secretKeys, trace, ttl, withWallet, type Session } from "./wallet";
 import { decodeBigintJson, encodeBigintJson } from "./bigint-json";
 import { dust, tokenAmount } from "./units";
 import { checkWithKeyMaterial, proveWithKeyMaterial } from "./proving/browserProving";
@@ -237,7 +237,7 @@ const handlers: Record<string, (origin: string, args: any[]) => Promise<unknown>
         await trace(`connector submit for ${origin}: ${await facade.submitTransaction(tx as any)}`);
         return null;
       } catch (e: any) {
-        const detail = [e?.message, e?.cause?.message, e?.cause?.cause?.message].filter(Boolean).join(" | ") || String(e);
+        const detail = describe(e);
         await trace(`connector submit FAILED for ${origin}: ${detail}`);
         // Release the coins that this transaction booked, so that the wallet can spend them again.
         await facade.revertTransaction(tx as any).catch(() => undefined);
