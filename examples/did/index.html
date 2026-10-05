@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>DID · Midnight Snap</title>
+  <style>
+    body { font: 15px system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+    button { font: inherit; padding: 6px 14px; margin: 4px 4px 4px 0; }
+    input { font: inherit; width: 100%; box-sizing: border-box; padding: 6px; }
+    fieldset { margin: 12px 0; }
+    pre { background: #f4f4f4; padding: 12px; white-space: pre-wrap; word-break: break-all; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>did:midnight</h1>
+  <button id="connect">Connect</button>
+  <p><label>DID contract address <input id="address" placeholder="Create, or paste an address" /></label></p>
+  <button id="create" disabled>Create DID</button>
+  <button id="refresh" disabled>Refresh</button>
+  <button id="deactivate" disabled>Deactivate</button>
+  <fieldset>
+    <legend>Verification method (Ed25519 JWK)</legend>
+    <label>id <input id="methodId" value="key-1" /></label>
+    <label>x <input id="methodX" value="11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" /></label>
+    <button id="addMethod" disabled>Add or update</button>
+    <button id="removeMethod" disabled>Remove</button>
+  </fieldset>
+  <fieldset>
+    <legend>Service</legend>
+    <label>id <input id="serviceId" value="midns" /></label>
+    <label>type <input id="serviceType" value="MidnamesName" /></label>
+    <label>endpoint <input id="serviceEndpoint" value="midns:snap.night" /></label>
+    <button id="setService" disabled>Add or update</button>
+  </fieldset>
+  <pre id="doc">–</pre>
+  <pre id="log"></pre>
+  <script type="module" src="/main.ts"></script>
+</body>
+</html>

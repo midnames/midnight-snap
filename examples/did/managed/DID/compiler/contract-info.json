@@ -1,0 +1,1995 @@
+{
+  "compiler-version": "0.33.0",
+  "language-version": "0.25.0",
+  "runtime-version": "0.18.0-rc.1",
+  "circuits": [
+    {
+      "name": "controllerAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "operationHash",
+          "type": {
+            "type-name": "Field"
+          }
+        },
+        {
+          "name": "argsHash",
+          "type": {
+            "type-name": "Field"
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "rotateControllerKeyAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "newControllerPublicKey",
+          "type": {
+            "type-name": "Alias",
+            "name": "JubjubPoint",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "JubjubPoint"
+            }
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "recoverControllerKeyAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "newControllerPublicKey",
+          "type": {
+            "type-name": "Alias",
+            "name": "JubjubPoint",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "JubjubPoint"
+            }
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "setAlsoKnownAsAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "value",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "SetMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Remove"
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "setVerificationMethodAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "verificationMethod",
+          "type": {
+            "type-name": "Struct",
+            "name": "VerificationMethod",
+            "elements": [
+              {
+                "name": "id",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              },
+              {
+                "name": "typ",
+                "type": {
+                  "type-name": "Enum",
+                  "name": "VerificationMethodType",
+                  "elements": [
+                    "Undefined",
+                    "JsonWebKey"
+                  ]
+                }
+              },
+              {
+                "name": "publicKeyJwk",
+                "type": {
+                  "type-name": "Struct",
+                  "name": "PublicKeyJwk",
+                  "elements": [
+                    {
+                      "name": "kty",
+                      "type": {
+                        "type-name": "Enum",
+                        "name": "KeyType",
+                        "elements": [
+                          "EC",
+                          "RSA",
+                          "oct",
+                          "OKP"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "crv",
+                      "type": {
+                        "type-name": "Enum",
+                        "name": "CurveType",
+                        "elements": [
+                          "Ed25519",
+                          "X25519",
+                          "Jubjub",
+                          "P256",
+                          "Secp256k1",
+                          "BLS12381G1",
+                          "BLS12381G2"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "x",
+                      "type": {
+                        "type-name": "Opaque",
+                        "tsType": "string"
+                      }
+                    },
+                    {
+                      "name": "y",
+                      "type": {
+                        "type-name": "Opaque",
+                        "tsType": "string"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "MapMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Update"
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "removeVerificationMethodAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "id",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "setSchnorrJubjubVerificationMethodAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "verificationMethod",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrJubjubVerificationMethod",
+            "elements": [
+              {
+                "name": "id",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              },
+              {
+                "name": "publicKey",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "MapMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Update"
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "removeSchnorrJubjubVerificationMethodAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "id",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "setVerificationMethodRelationAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "relation",
+          "type": {
+            "type-name": "Enum",
+            "name": "VerificationMethodRelation",
+            "elements": [
+              "Undefined",
+              "Authentication",
+              "AssertionMethod",
+              "KeyAgreement",
+              "CapabilityInvocation",
+              "CapabilityDelegation"
+            ]
+          }
+        },
+        {
+          "name": "methodId",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "SetMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Remove"
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "setServiceAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "service",
+          "type": {
+            "type-name": "Struct",
+            "name": "Service",
+            "elements": [
+              {
+                "name": "id",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              },
+              {
+                "name": "typ",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              },
+              {
+                "name": "serviceEndpoint",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "MapMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Update"
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "removeServiceAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        },
+        {
+          "name": "id",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "deactivateAuthorizationDigest",
+      "pure": true,
+      "proof": false,
+      "arguments": [
+        {
+          "name": "contractId",
+          "type": {
+            "type-name": "Struct",
+            "name": "ContractAddress",
+            "elements": [
+              {
+                "name": "bytes",
+                "type": {
+                  "type-name": "Bytes",
+                  "length": 32
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Vector",
+        "length": 4,
+        "type": {
+          "type-name": "Field"
+        }
+      }
+    },
+    {
+      "name": "rotateControllerKey",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "newControllerPublicKey",
+          "type": {
+            "type-name": "Alias",
+            "name": "JubjubPoint",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "JubjubPoint"
+            }
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "recoverControllerKey",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "newControllerPublicKey",
+          "type": {
+            "type-name": "Alias",
+            "name": "JubjubPoint",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "JubjubPoint"
+            }
+          }
+        },
+        {
+          "name": "recoverySignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "setAlsoKnownAs",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "value",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "SetMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Remove"
+            ]
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "setVerificationMethod",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "verificationMethod",
+          "type": {
+            "type-name": "Struct",
+            "name": "VerificationMethod",
+            "elements": [
+              {
+                "name": "id",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              },
+              {
+                "name": "typ",
+                "type": {
+                  "type-name": "Enum",
+                  "name": "VerificationMethodType",
+                  "elements": [
+                    "Undefined",
+                    "JsonWebKey"
+                  ]
+                }
+              },
+              {
+                "name": "publicKeyJwk",
+                "type": {
+                  "type-name": "Struct",
+                  "name": "PublicKeyJwk",
+                  "elements": [
+                    {
+                      "name": "kty",
+                      "type": {
+                        "type-name": "Enum",
+                        "name": "KeyType",
+                        "elements": [
+                          "EC",
+                          "RSA",
+                          "oct",
+                          "OKP"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "crv",
+                      "type": {
+                        "type-name": "Enum",
+                        "name": "CurveType",
+                        "elements": [
+                          "Ed25519",
+                          "X25519",
+                          "Jubjub",
+                          "P256",
+                          "Secp256k1",
+                          "BLS12381G1",
+                          "BLS12381G2"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "x",
+                      "type": {
+                        "type-name": "Opaque",
+                        "tsType": "string"
+                      }
+                    },
+                    {
+                      "name": "y",
+                      "type": {
+                        "type-name": "Opaque",
+                        "tsType": "string"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "MapMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Update"
+            ]
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "removeVerificationMethod",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "methodId",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "setSchnorrJubjubVerificationMethod",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "verificationMethod",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrJubjubVerificationMethod",
+            "elements": [
+              {
+                "name": "id",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              },
+              {
+                "name": "publicKey",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "MapMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Update"
+            ]
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "removeSchnorrJubjubVerificationMethod",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "methodId",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "verifySchnorrJubjubDigestSignature",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "methodId",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        },
+        {
+          "name": "digest",
+          "type": {
+            "type-name": "Vector",
+            "length": 4,
+            "type": {
+              "type-name": "Field"
+            }
+          }
+        },
+        {
+          "name": "signature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "setVerificationMethodRelation",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "relation",
+          "type": {
+            "type-name": "Enum",
+            "name": "VerificationMethodRelation",
+            "elements": [
+              "Undefined",
+              "Authentication",
+              "AssertionMethod",
+              "KeyAgreement",
+              "CapabilityInvocation",
+              "CapabilityDelegation"
+            ]
+          }
+        },
+        {
+          "name": "methodId",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "SetMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Remove"
+            ]
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "setService",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "service",
+          "type": {
+            "type-name": "Struct",
+            "name": "Service",
+            "elements": [
+              {
+                "name": "id",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              },
+              {
+                "name": "typ",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              },
+              {
+                "name": "serviceEndpoint",
+                "type": {
+                  "type-name": "Opaque",
+                  "tsType": "string"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "mutation",
+          "type": {
+            "type-name": "Enum",
+            "name": "MapMutation",
+            "elements": [
+              "Undefined",
+              "Insert",
+              "Update"
+            ]
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "removeService",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "serviceId",
+          "type": {
+            "type-name": "Opaque",
+            "tsType": "string"
+          }
+        },
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    },
+    {
+      "name": "deactivate",
+      "pure": false,
+      "proof": true,
+      "arguments": [
+        {
+          "name": "controllerSignature",
+          "type": {
+            "type-name": "Struct",
+            "name": "SchnorrSignature",
+            "elements": [
+              {
+                "name": "announcement",
+                "type": {
+                  "type-name": "Alias",
+                  "name": "JubjubPoint",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "JubjubPoint"
+                  }
+                }
+              },
+              {
+                "name": "response",
+                "type": {
+                  "type-name": "Field"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "expectedVersion",
+          "type": {
+            "type-name": "Uint",
+            "maxval": 18446744073709551615
+          }
+        }
+      ],
+      "result-type": {
+        "type-name": "Tuple",
+        "types": [
+        ]
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "name": "getSchnorrReduction",
+      "arguments": [
+        {
+          "name": "challengeHash",
+          "type": {
+            "type-name": "Field"
+          }
+        }
+      ],
+      "result type": {
+        "type-name": "Tuple",
+        "types": [
+          {
+            "type-name": "Uint",
+            "maxval": 127
+          },
+          {
+            "type-name": "Uint",
+            "maxval": 452312848583266388373324160190187140051835877600158453279131187530910662655
+          }
+        ]
+      }
+    },
+    {
+      "name": "localControllerPublicKey",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Alias",
+        "name": "JubjubPoint",
+        "type": {
+          "type-name": "Opaque",
+          "tsType": "JubjubPoint"
+        }
+      }
+    },
+    {
+      "name": "localRecoveryAuthorityPublicKey",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Alias",
+        "name": "JubjubPoint",
+        "type": {
+          "type-name": "Opaque",
+          "tsType": "JubjubPoint"
+        }
+      }
+    },
+    {
+      "name": "currentTimestamp",
+      "arguments": [
+      ],
+      "result type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    }
+  ],
+  "contracts": [
+  ],
+  "ledger": [
+    {
+      "name": "contractVersion",
+      "index": [
+        0,
+        0
+      ],
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 4294967295
+      }
+    },
+    {
+      "name": "controllerPublicKey",
+      "index": [
+        0,
+        1
+      ],
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Alias",
+        "name": "JubjubPoint",
+        "type": {
+          "type-name": "Opaque",
+          "tsType": "JubjubPoint"
+        }
+      }
+    },
+    {
+      "name": "recoveryAuthorityPublicKey",
+      "index": [
+        0,
+        2
+      ],
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Alias",
+        "name": "JubjubPoint",
+        "type": {
+          "type-name": "Opaque",
+          "tsType": "JubjubPoint"
+        }
+      }
+    },
+    {
+      "name": "id",
+      "index": [
+        0,
+        3
+      ],
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Struct",
+        "name": "ContractAddress",
+        "elements": [
+          {
+            "name": "bytes",
+            "type": {
+              "type-name": "Bytes",
+              "length": 32
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "alsoKnownAs",
+      "index": [
+        1,
+        0
+      ],
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      }
+    },
+    {
+      "name": "version",
+      "index": [
+        1,
+        1
+      ],
+      "exported": true,
+      "storage": "Counter"
+    },
+    {
+      "name": "created",
+      "index": [
+        1,
+        2
+      ],
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "updated",
+      "index": [
+        1,
+        3
+      ],
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Uint",
+        "maxval": 18446744073709551615
+      }
+    },
+    {
+      "name": "deactivated",
+      "index": [
+        1,
+        4
+      ],
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "active",
+      "index": [
+        1,
+        5
+      ],
+      "exported": true,
+      "storage": "Cell",
+      "type": {
+        "type-name": "Boolean"
+      }
+    },
+    {
+      "name": "operationCount",
+      "index": [
+        1,
+        6
+      ],
+      "exported": true,
+      "storage": "Counter"
+    },
+    {
+      "name": "verificationMethods",
+      "index": [
+        1,
+        7
+      ],
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      },
+      "value": {
+        "type-name": "Struct",
+        "name": "VerificationMethod",
+        "elements": [
+          {
+            "name": "id",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "string"
+            }
+          },
+          {
+            "name": "typ",
+            "type": {
+              "type-name": "Enum",
+              "name": "VerificationMethodType",
+              "elements": [
+                "Undefined",
+                "JsonWebKey"
+              ]
+            }
+          },
+          {
+            "name": "publicKeyJwk",
+            "type": {
+              "type-name": "Struct",
+              "name": "PublicKeyJwk",
+              "elements": [
+                {
+                  "name": "kty",
+                  "type": {
+                    "type-name": "Enum",
+                    "name": "KeyType",
+                    "elements": [
+                      "EC",
+                      "RSA",
+                      "oct",
+                      "OKP"
+                    ]
+                  }
+                },
+                {
+                  "name": "crv",
+                  "type": {
+                    "type-name": "Enum",
+                    "name": "CurveType",
+                    "elements": [
+                      "Ed25519",
+                      "X25519",
+                      "Jubjub",
+                      "P256",
+                      "Secp256k1",
+                      "BLS12381G1",
+                      "BLS12381G2"
+                    ]
+                  }
+                },
+                {
+                  "name": "x",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "string"
+                  }
+                },
+                {
+                  "name": "y",
+                  "type": {
+                    "type-name": "Opaque",
+                    "tsType": "string"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "schnorrJubjubVerificationMethods",
+      "index": [
+        1,
+        8
+      ],
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      },
+      "value": {
+        "type-name": "Struct",
+        "name": "SchnorrJubjubVerificationMethod",
+        "elements": [
+          {
+            "name": "id",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "string"
+            }
+          },
+          {
+            "name": "publicKey",
+            "type": {
+              "type-name": "Alias",
+              "name": "JubjubPoint",
+              "type": {
+                "type-name": "Opaque",
+                "tsType": "JubjubPoint"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "authenticationRelation",
+      "index": [
+        1,
+        9
+      ],
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      }
+    },
+    {
+      "name": "assertionMethodRelation",
+      "index": [
+        1,
+        10
+      ],
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      }
+    },
+    {
+      "name": "keyAgreementRelation",
+      "index": [
+        1,
+        11
+      ],
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      }
+    },
+    {
+      "name": "capabilityInvocationRelation",
+      "index": [
+        1,
+        12
+      ],
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      }
+    },
+    {
+      "name": "capabilityDelegationRelation",
+      "index": [
+        1,
+        13
+      ],
+      "exported": true,
+      "storage": "Set",
+      "type": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      }
+    },
+    {
+      "name": "services",
+      "index": [
+        1,
+        14
+      ],
+      "exported": true,
+      "storage": "Map",
+      "key": {
+        "type-name": "Opaque",
+        "tsType": "string"
+      },
+      "value": {
+        "type-name": "Struct",
+        "name": "Service",
+        "elements": [
+          {
+            "name": "id",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "string"
+            }
+          },
+          {
+            "name": "typ",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "string"
+            }
+          },
+          {
+            "name": "serviceEndpoint",
+            "type": {
+              "type-name": "Opaque",
+              "tsType": "string"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
