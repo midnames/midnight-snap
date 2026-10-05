@@ -8,8 +8,6 @@
   h2 { font-size: 1rem; margin: 1.2rem 0 .4rem; }
 </style>
 <h1>Midnight Snap</h1>
-<p>Needs MetaMask Flask and <code>pnpm serve</code> on 8093. Serve this file over http
-  (<code>python3 -m http.server 8000</code>) — a module import will not load from <code>file://</code>.</p>
 
 <h2>connector (window.midnight entry for the snap)</h2>
 <button id="connect">connect</button>
@@ -39,6 +37,13 @@
 <button id="toUndeployed">switch to undeployed</button>
 <button id="sites">midnight_getSites</button>
 <button id="revoke">revoke this origin</button>
+
+<p>
+  <input id="name" type="text" value="snap.night" size="24" />
+  <button id="resolveName">midnight_resolveName</button>
+  <button id="resolveDid">name → DID document</button>
+  <button id="sendToName">send 1 to this name</button>
+</p>
 
 <pre id="out">loading connector…</pre>
 
@@ -107,6 +112,16 @@
   $('toStagenet').onclick = run(() => invoke('midnight_setNetwork', { networkId: 'stagenet' }));
   $('toUndeployed').onclick = run(() => invoke('midnight_setNetwork', { networkId: 'undeployed' }));
   $('sites').onclick = run(() => invoke('midnight_getSites'));
+
+  const name = () => $('name').value.trim();
+  $('resolveName').onclick = run(() => invoke('midnight_resolveName', { name: name() }));
+  $('resolveDid').onclick = run(async () => {
+    const record = await invoke('midnight_resolveName', { name: name() });
+    if (!record.fields.did) return `${record.name} has no did field`;
+    return invoke('midnight_resolveDid', { did: record.fields.did });
+  });
+  // The snap resolves the name itself, and its confirmation shows the name and the address it resolved to.
+  $('sendToName').onclick = run(() => invoke('midnight_transfer', { type: 'unshielded', to: name(), amount: '1' }));
   $('revoke').onclick = run(() => invoke('midnight_revokeSite', { origin: location.origin }));
 
   show(`ready — window.midnight: ${Object.keys(window.midnight).join(', ')}`);
