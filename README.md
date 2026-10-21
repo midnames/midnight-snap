@@ -29,6 +29,7 @@ Until then, use MetaMask Flask.
 | `bridge-extension/` | A Chrome extension that adds the connector to all pages, for tests with dApps that you cannot change. |
 | `scripts/` | Proving params mirror, fast sync check, proving benchmark. |
 | `wallet/` | The wallet site: a React page that uses the snap as a wallet. Refer to [Wallet site](#wallet-site). |
+| `examples/` | dApps that use the snap through the connector: `counter` and `did`. |
 
 ## Build and test
 
@@ -125,7 +126,15 @@ On stagenet, `snap.night` links to the test DID
 `did:midnight:stagenet:f63ba2791972e511dccca154d75df67ed22cdaccb3d01f539fbfbeda0eb07679`. The DID has a `midns` service
 that names `snap.night`, so the link goes in both directions. Its controller secret is public: it is for tests only.
 
-The snap does not create or update DIDs yet.
+`examples/did` creates and updates DIDs through the snap. The page signs each operation with the controller key, and
+the snap balances, proves and submits the transaction. Stagenet refuses a deploy with all the circuits, so the page
+deploys `setService` and adds the verifier key of another circuit when it first needs it. The page keeps the
+controller key in localStorage: use it for tests only.
+
+```sh
+pnpm build:dev && pnpm serve                      # the snap, at local:http://localhost:8093
+cd examples/did && npm install && npm run dev     # http://127.0.0.1:5175
+```
 
 ## Sync
 
