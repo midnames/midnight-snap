@@ -2,6 +2,7 @@
 // snap answers them only for its SNAP_WALLET_ORIGIN, a development snap also for localhost (README, "Wallet site").
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import QRCode from 'qrcode';
+import { Icon } from './Icon';
 import { provider } from '../../connector/src/index.ts';
 import { addressKind, applyTheme, useLocal, type Contact, type Theme } from './local';
 import {
@@ -58,6 +59,7 @@ export function App() {
   const [theme, setTheme] = useLocal<Theme>('theme', 'system');
   const [names, setNames] = useLocal<Record<string, string>>('tokenNames', {});
   const [contacts, setContacts] = useLocal<Contact[]>('addressBook', []);
+  const tab = useTab();
   setTokenNames(names);
 
   /** Wallet operations save a new summary and history when they end. */
@@ -110,171 +112,322 @@ export function App() {
   if (!wallet) {
     return (
       <main className="center">
-        <h1>Midnight Wallet</h1>
-        <p className="muted">A Midnight wallet in MetaMask. Your keys stay in MetaMask; this page only asks the snap.</p>
-        <button className="primary" disabled={!!busy} onClick={connect}>
-          {busy ? `${busy.label}…` : 'Connect MetaMask'}
-        </button>
-        {notice && <p className={notice.error ? 'error' : 'muted'}>{notice.text}</p>}
-        <p className="muted small">Snap: {SNAP_ID}</p>
+        <section className="connect">
+          <div className="hero-head">
+            <span className="hero-mark">M</span>
+            <span className="hero-title">
+              <strong>Midnight Snap</strong>
+              <small>Midnight wallet in MetaMask</small>
+            </span>
+          </div>
+          <h1>Connect MetaMask</h1>
+          <p className="muted">A Midnight wallet in MetaMask. Your keys stay in MetaMask; this page only asks the snap.</p>
+          <div className="row">
+            <span className="pill tag shielded">
+              <Icon name="lock" className="icon-sm" />
+              Shielded
+            </span>
+            <span className="pill tag">
+              <Icon name="globe" className="icon-sm" />
+              Unshielded
+            </span>
+            <span className="pill tag">
+              <Icon name="dust" className="icon-sm" />
+              DUST
+            </span>
+          </div>
+          <button className="primary full" disabled={!!busy} onClick={connect}>
+            {busy ? <span className="spinner" /> : <Icon name="wallet" className="icon" />}
+            {busy ? `${busy.label}…` : 'Connect MetaMask'}
+          </button>
+          {notice && <p className={`alert ${notice.error ? 'error' : ''}`}>{notice.text}</p>}
+          <p className="snap-id muted small mono">
+            {SNAP_ID}
+          </p>
+        </section>
       </main>
     );
   }
 
   const { summary, accounts, network } = wallet;
   const tokens = summary?.tokens;
+  // A summary from an older snap has only the sum of all tokens of each kind.
+  const night = BigInt(tokens ? (tokens.unshielded[NATIVE] ?? '0') : (summary?.unshielded ?? '0'));
+  const shieldedNight = BigInt(tokens ? (tokens.shielded[NATIVE] ?? '0') : (summary?.shielded ?? '0'));
+  const sync = busy
+    ? { dot: 'warn', text: busy.label }
+    : !summary
+      ? { dot: '', text: 'Not synced' }
+      : summary.synced
+        ? { dot: 'ok', text: `Synced ${ago(summary.at)}` }
+        : { dot: 'warn', text: 'Sync incomplete' };
+  const more = () =>
+    run('Loading activity', async () => {
+      const next = await invoke<History>('midnight_getHistory', { page: history.entries.length / PAGE, pageSize: PAGE });
+      setHistory({ total: next.total, entries: [...history.entries, ...next.entries] });
+    });
+  // Every tab stays mounted and only the active one shows, so a half-filled form survives a tab change.
+  const panel = (id: Tab) => ({ hidden: tab !== id, 'aria-labelledby': `tab-${id}` });
   return (
     <main>
-      <header>
-        <h1>Midnight Wallet</h1>
-        <select
-          aria-label="Network"
-          value={network.networkId}
-          disabled={!!busy}
-          onChange={(e) =>
-            run('Switching network', async () => {
-              await invoke('midnight_setNetwork', { networkId: e.target.value });
-              await refresh();
-              setBusy({ label: 'Syncing', since: Date.now() });
-              return syncNow();
-            })
-          }
-        >
-          {network.available.map((n) => (
-            <option key={n}>{n}</option>
-          ))}
-        </select>
-        <select
-          aria-label="Theme"
-          value={theme}
-          onChange={(e) => {
-            setTheme(e.target.value as Theme);
-            applyTheme(e.target.value as Theme);
-          }}
-        >
-          <option value="system">System theme</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
+      <header className="topbar">
+        <span className="hero-mark" aria-hidden="true">
+          M
+        </span>
+        <span className="hero-title">
+          <strong>Midnight Snap</strong>
+          <small>
+              <select
+                aria-label="Network"
+                value={network.networkId}
+                disabled={!!busy}
+                onChange={(e) =>
+                  run('Switching network', async () => {
+                    await invoke('midnight_setNetwork', { networkId: e.target.value });
+                    await refresh();
+                    setBusy({ label: 'Syncing', since: Date.now() });
+                    return syncNow();
+                  })
+                }
+              >
+                {network.available.map((n) => (
+                  <option key={n}>{n}</option>
+                ))}
+              </select>{' '}
+              · MetaMask
+          </small>
+        </span>
+        <span className="pill" role="status">
+          <span className={`dot ${sync.dot}`} />
+          <span>{sync.text}</span>
+        </span>
+        <button className="icon-button" title="Sync" aria-label="Sync" disabled={!!busy} onClick={() => run('Syncing', syncNow)}>
+          <Icon name="refresh" className="icon" />
+        </button>
       </header>
 
-      <Status busy={busy} notice={notice} summary={summary} />
+      <Status busy={busy} notice={notice} dismiss={() => setNotice(null)} />
 
-      <section className="balances">
-        {/* A summary from an older snap has only the sum of all tokens of each kind. */}
-        <Balance label="NIGHT" value={formatUnits(tokens ? (tokens.unshielded[NATIVE] ?? '0') : (summary?.unshielded ?? '0'), NIGHT_DECIMALS)} />
-        <Balance label="Shielded NIGHT" value={formatUnits(tokens ? (tokens.shielded[NATIVE] ?? '0') : (summary?.shielded ?? '0'), NIGHT_DECIMALS)} />
-        <Balance label="DUST" value={formatUnits(summary?.dust ?? '0', DUST_DECIMALS, 4)} />
-      </section>
-      <div className="row">
-        <button disabled={!!busy} onClick={() => run('Syncing', syncNow)}>
-          Sync
-        </button>
+      <div className="panel" {...panel('wallet')}>
+        <div className="hero">
+          <div className="hero-total">
+            <div className="amount">{formatUnits(night + shieldedNight, NIGHT_DECIMALS)} NIGHT</div>
+            <p>Private and public balances together.</p>
+          </div>
+          <div className="balances">
+            <Balance label="Unshielded" value={formatUnits(night, NIGHT_DECIMALS)} />
+            <Balance label="Shielded" value={formatUnits(shieldedNight, NIGHT_DECIMALS)} />
+            <Balance label="DUST" value={formatUnits(summary?.dust ?? '0', DUST_DECIMALS, 4)} />
+          </div>
+          <div className="hero-actions">
+            <a className="hero-action" href="#receive">
+              <Icon name="receive" className="icon" />
+              Receive
+            </a>
+            <a className="hero-action" href="#send">
+              <Icon name="send" className="icon" />
+              Send
+            </a>
+          </div>
+        </div>
+        <div className="cols">
+          <div className="col">
+            {tokens && (
+              <section>
+                <h2>Assets</h2>
+                {(['unshielded', 'shielded'] as const).flatMap((kind) =>
+                  Object.entries(tokens[kind]).map(([type, amount]) => (
+                    <div key={kind + type} className="item asset" title={type}>
+                      <span className="asset-icon" aria-hidden="true">
+                        {tokenName(type).slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className="asset-name">
+                        {type === NATIVE ? <strong>NIGHT</strong> : <TokenName token={type} names={names} setNames={setNames} />}
+                        <KindTag kind={kind} />
+                      </span>
+                      <span className="asset-amount">{formatUnits(amount, decimalsOf(type))}</span>
+                    </div>
+                  )),
+                )}
+                {!Object.keys(tokens.unshielded).length && !Object.keys(tokens.shielded).length && (
+                  <p className="muted small">No token balances yet. Use Receive to share a shielded or unshielded address.</p>
+                )}
+              </section>
+            )}
+            <Activity history={history} busy={!!busy} more={more} recent />
+          </div>
+          <div className="col">
+            <Dust busy={!!busy} summary={summary} run={run} refresh={refresh} />
+          </div>
+        </div>
       </div>
 
-      {tokens && (
-        <section>
-          <h2>Tokens</h2>
-          {(['unshielded', 'shielded'] as const).flatMap((kind) =>
-            Object.entries(tokens[kind]).map(([type, amount]) => (
-              <div key={kind + type} className="item">
-                <span title={type}>
-                  {type === NATIVE ? <strong>NIGHT</strong> : <TokenName token={type} names={names} setNames={setNames} />}{' '}
-                  <span className="muted small">{kind}</span>
-                </span>
-                <span className="mono">{formatUnits(amount, decimalsOf(type))}</span>
+      <div className="panel" {...panel('receive')}>
+        <h1 className="page-title">Receive</h1>
+        <div className="receive-grid">
+          <Copy label="Unshielded address" value={accounts.unshielded} qr />
+          <Copy label="Shielded address" value={accounts.shielded} qr />
+          <Copy label="DUST public key" value={accounts.dustPublicKey} qr />
+        </div>
+      </div>
+
+      <div className="panel" {...panel('send')}>
+        <h1 className="page-title">Send</h1>
+        <div className="cols">
+          <Send busy={!!busy} contacts={contacts} networkId={network.networkId} summary={summary} proving={wallet.options.provingStrategy} run={run} refresh={refresh} />
+          <AddressBook contacts={contacts} setContacts={setContacts} networkId={network.networkId} />
+        </div>
+      </div>
+
+      <div className="panel" {...panel('activity')}>
+        <h1 className="page-title">Activity</h1>
+        <Activity history={history} busy={!!busy} more={more} />
+      </div>
+
+      <div className="panel" {...panel('settings')}>
+        <h1 className="page-title">Settings</h1>
+        <div className="settings-grid">
+        {!!summary?.names?.length && (
+          <section>
+            <h2>Names</h2>
+            {summary.names.map((n) => (
+              <div key={n.name} className="item">
+                <strong>{n.name}</strong>
+                <span className="mono small">{n.did ?? 'no DID'}</span>
               </div>
-            )),
-          )}
-          {!Object.keys(tokens.unshielded).length && !Object.keys(tokens.shielded).length && <p className="muted">No tokens.</p>}
-        </section>
-      )}
+            ))}
+          </section>
+        )}
 
-      <Send busy={!!busy} contacts={contacts} networkId={network.networkId} summary={summary} proving={wallet.options.provingStrategy} run={run} refresh={refresh} />
-
-      <Dust busy={!!busy} summary={summary} run={run} refresh={refresh} />
-
-      <Activity
-        history={history}
-        busy={!!busy}
-        more={() =>
-          run('Loading activity', async () => {
-            const next = await invoke<History>('midnight_getHistory', { page: history.entries.length / PAGE, pageSize: PAGE });
-            setHistory({ total: next.total, entries: [...history.entries, ...next.entries] });
-          })
-        }
-      />
-
-      <section>
-        <h2>Receive</h2>
-        <Copy label="Unshielded address" value={accounts.unshielded} qr />
-        <Copy label="Shielded address" value={accounts.shielded} qr />
-        <Copy label="DUST public key" value={accounts.dustPublicKey} />
-      </section>
-
-      <AddressBook contacts={contacts} setContacts={setContacts} networkId={network.networkId} />
-
-      {!!summary?.names?.length && (
         <section>
-          <h2>Names</h2>
-          {summary.names.map((n) => (
-            <div key={n.name} className="item">
-              <strong>{n.name}</strong>
-              <span className="mono small">{n.did ?? 'no DID'}</span>
+          <h2>Connected sites</h2>
+          {wallet.sites.length === 0 && <p className="muted">No site is connected on {network.networkId}.</p>}
+          {wallet.sites.map((site) => (
+            <div key={site} className="item">
+              <span>{site}</span>
+              <button
+                disabled={!!busy}
+                onClick={() =>
+                  run('Revoking', async () => {
+                    await invoke('midnight_revokeSite', { origin: site });
+                    await refresh();
+                  })
+                }
+              >
+                Revoke
+              </button>
             </div>
           ))}
         </section>
-      )}
 
-      <section>
-        <h2>Connected sites</h2>
-        {wallet.sites.length === 0 && <p className="muted">No site is connected on {network.networkId}.</p>}
-        {wallet.sites.map((site) => (
-          <div key={site} className="item">
-            <span>{site}</span>
-            <button
-              disabled={!!busy}
-              onClick={() =>
-                run('Revoking', async () => {
-                  await invoke('midnight_revokeSite', { origin: site });
-                  await refresh();
-                })
-              }
-            >
-              Revoke
-            </button>
+        <Settings busy={!!busy} options={wallet.options} run={run} refresh={refresh} />
+        <NetworkSettings busy={!!busy} network={network} run={run} refresh={refresh} />
+
+        <section>
+          <h2>Appearance</h2>
+          <div className="segmented">
+            {(['system', 'light', 'dark'] as const).map((t) => (
+              <label key={t}>
+                <input
+                  type="radio"
+                  name="theme"
+                  checked={theme === t}
+                  onChange={() => {
+                    setTheme(t);
+                    applyTheme(t);
+                  }}
+                />
+                {{ system: 'System', light: 'Light', dark: 'Dark' }[t]}
+              </label>
+            ))}
           </div>
-        ))}
-      </section>
+        </section>
 
-      <Settings busy={!!busy} options={wallet.options} run={run} refresh={refresh} />
-      <NetworkSettings busy={!!busy} network={network} run={run} refresh={refresh} />
+        <section>
+          <h2>Reset</h2>
+          <p className="muted small">
+            Deletes the wallet state, the settings and the site connections of the snap. Your keys stay in MetaMask. The next sync starts from zero.
+          </p>
+          <button
+            className="danger"
+            disabled={!!busy}
+            onClick={() =>
+              run('Resetting (confirm in MetaMask)', async () => {
+                await invoke('midnight_reset');
+                await refresh();
+                return 'Reset. Sync to load the wallet again.';
+              })
+            }
+          >
+            Reset the snap
+          </button>
+        </section>
+        </div>
+      </div>
 
-      <section>
-        <h2>Reset</h2>
-        <p className="muted small">
-          Deletes the wallet state, the settings and the site connections of the snap. Your keys stay in MetaMask. The next sync starts from zero.
-        </p>
-        <button
-          className="danger"
-          disabled={!!busy}
-          onClick={() =>
-            run('Resetting (confirm in MetaMask)', async () => {
-              await invoke('midnight_reset');
-              await refresh();
-              return 'Reset. Sync to load the wallet again.';
-            })
-          }
-        >
-          Reset the snap
-        </button>
-      </section>
+      <Nav active={tab} />
     </main>
   );
 }
 
-/** The busy operation with its sync progress, or the last result. */
-function Status({ busy, notice, summary }: { busy: { label: string; since: number } | null; notice: { error: boolean; text: string } | null; summary: Summary | null }) {
+const NAV = [
+  { id: 'wallet', label: 'Wallet', icon: 'wallet' },
+  { id: 'receive', label: 'Receive', icon: 'receive' },
+  { id: 'send', label: 'Send', icon: 'send' },
+  { id: 'activity', label: 'Activity', icon: 'activity' },
+  { id: 'settings', label: 'Settings', icon: 'settings' },
+] as const;
+
+type Tab = (typeof NAV)[number]['id'];
+const tabOf = (hash: string): Tab => NAV.find((n) => `#${n.id}` === hash)?.id ?? 'wallet';
+
+/** The tab in the URL hash, so links, back and reload keep it. */
+function useTab() {
+  const [tab, setTab] = useState(() => tabOf(location.hash));
+  useEffect(() => {
+    const onHash = () => (setTab(tabOf(location.hash)), scrollTo(0, 0));
+    addEventListener('hashchange', onHash);
+    return () => removeEventListener('hashchange', onHash);
+  }, []);
+  return tab;
+}
+
+/** The extension's bottom bar, a sidebar on wide screens. */
+function Nav({ active }: { active: Tab }) {
+  return (
+    <nav className="nav" aria-label="Wallet">
+      <div className="nav-inner">
+        {NAV.map((n) => (
+          <a
+            key={n.id}
+            id={`tab-${n.id}`}
+            href={`#${n.id}`}
+            aria-current={active === n.id ? 'page' : undefined}
+            className={`${n.id === 'send' ? 'prominent' : ''} ${active === n.id ? 'active' : ''}`}
+          >
+            <span>
+              <Icon name={n.icon} className={n.id === 'send' ? 'icon' : 'icon-sm'} />
+            </span>
+            {n.label}
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+/** Shielded or unshielded, as a tag. */
+function KindTag({ kind }: { kind: Kind }) {
+  return (
+    <span className={`pill tag ${kind === 'shielded' ? 'shielded' : ''}`}>
+      <Icon name={kind === 'shielded' ? 'lock' : 'globe'} className="icon-sm" />
+      {kind}
+    </span>
+  );
+}
+
+/** The busy operation with its sync progress, or the last result, above the bottom bar. */
+function Status({ busy, notice, dismiss }: { busy: { label: string; since: number } | null; notice: { error: boolean; text: string } | null; dismiss: () => void }) {
   const [progress, setProgress] = useState<SyncProgress>(null);
   const [, tick] = useState(0);
   const first = useRef<{ at: number; done: number } | null>(null);
@@ -291,10 +444,15 @@ function Status({ busy, notice, summary }: { busy: { label: string; since: numbe
     return () => clearInterval(id);
   }, [busy]);
 
+  // The hero's pill shows the last sync. The toast shows only a result, until the user dismisses it.
   if (!busy) {
+    if (!notice) return null;
     return (
-      <div className={`status ${notice?.error ? 'error' : ''}`} role="status">
-        {notice?.text ?? (summary ? `Last sync ${ago(summary.at)}${summary.synced ? '' : ' (incomplete)'}` : 'Not synced yet')}
+      <div className={`alert toast ${notice.error ? 'error' : 'ok'}`} role={notice.error ? 'alert' : 'status'}>
+        <span>{notice.text}</span>
+        <button type="button" aria-label="Dismiss notification" onClick={dismiss}>
+          Dismiss
+        </button>
       </div>
     );
   }
@@ -317,8 +475,11 @@ function Status({ busy, notice, summary }: { busy: { label: string; since: numbe
     detail = ' · synced';
   }
   return (
-    <div className="status" role="status">
-      {busy.label}… {Math.round((Date.now() - busy.since) / 1000)} s{detail}
+    <div className="alert toast" role="status">
+      <span className="spinner" />
+      <span>
+        {busy.label}… {Math.round((Date.now() - busy.since) / 1000)} s{detail}
+      </span>
     </div>
   );
 }
@@ -326,7 +487,7 @@ function Status({ busy, notice, summary }: { busy: { label: string; since: numbe
 function Balance({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <span className="muted small">{label}</span>
+      <span className="kicker">{label}</span>
       <span className="amount">{value}</span>
     </div>
   );
@@ -335,22 +496,24 @@ function Balance({ label, value }: { label: string; value: string }) {
 function Copy({ label, value, qr }: { label: string; value: string; qr?: boolean }) {
   const [copied, setCopied] = useState(false);
   const [image, setImage] = useState<string | null>(null);
+  useEffect(() => {
+    if (qr) QRCode.toDataURL(value, { margin: 0, width: 320 }).then(setImage, () => setImage(null));
+  }, [qr, value]);
   return (
     <div className="copy">
-      <span className="muted small">{label}</span>
-      <button
-        className="mono"
-        title="Copy"
-        onClick={() => navigator.clipboard.writeText(value).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))}
-      >
-        {copied ? 'Copied' : value}
-      </button>
-      {qr && (
-        <details onToggle={(e) => (e.currentTarget.open && !image ? QRCode.toDataURL(value, { margin: 0, width: 320 }).then(setImage) : undefined)}>
-          <summary className="small">QR code</summary>
-          {image && <img className="qr" src={image} alt={`QR code of the ${label.toLowerCase()}`} />}
-        </details>
-      )}
+      <div className="copy-head">
+        <span className="kicker">{label}</span>
+        <button
+          type="button"
+          className="small"
+          onClick={() => navigator.clipboard.writeText(value).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))}
+        >
+          <Icon name={copied ? 'check' : 'copy'} className="icon-sm" />
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <div className="copy-value mono">{value}</div>
+      {image && <img className="qr" src={image} alt={`QR code of the ${label.toLowerCase()}`} />}
     </div>
   );
 }
@@ -474,7 +637,6 @@ function Send(props: { busy: boolean; contacts: Contact[]; networkId: string; su
 
   return (
     <section>
-      <h2>Send</h2>
       <form onSubmit={submit}>
         {rows.map((r, i) => (
           <SendRow
@@ -517,6 +679,7 @@ function Send(props: { busy: boolean; contacts: Contact[]; networkId: string; su
             Estimate fee
           </button>
           <button className="primary" disabled={busy || !valid}>
+            <Icon name="send" className="icon-sm" />
             Send
           </button>
         </div>
@@ -559,12 +722,15 @@ function SendRow(props: {
   return (
     <fieldset>
       {props.index > 0 && <legend>Transfer {props.index}</legend>}
-      <div className="row">
-        {(['unshielded', 'shielded'] as const).map((t) => (
-          <label key={t} className="radio">
-            <input type="radio" checked={row.type === t} onChange={() => props.onChange({ type: t, token: NATIVE })} /> {t}
-          </label>
-        ))}
+      <div className="row nowrap">
+        <div className="segmented grow">
+          {(['unshielded', 'shielded'] as const).map((t) => (
+            <label key={t}>
+              <input type="radio" checked={row.type === t} onChange={() => props.onChange({ type: t, token: NATIVE })} />
+              {t === 'shielded' ? 'Shielded' : 'Unshielded'}
+            </label>
+          ))}
+        </div>
         {props.onRemove && (
           <button type="button" className="link" onClick={props.onRemove}>
             Remove
@@ -668,7 +834,6 @@ function Dust({ busy, summary, run, refresh }: { busy: boolean; summary: Summary
           ))}
         </details>
       )}
-      <p className="muted small">At the last sync. DUST pays transaction fees. Registered NIGHT generates it up to a maximum. After you stop, it decays.</p>
       <div className="row">
         <button
           disabled={busy || unregistered.length === 0}
@@ -699,7 +864,8 @@ function Dust({ busy, summary, run, refresh }: { busy: boolean; summary: Summary
   );
 }
 
-function Activity({ history, busy, more }: { history: History; busy: boolean; more: () => void }) {
+/** The activity. `recent` shows the last three, with a link to the Activity tab. */
+function Activity({ history, busy, more, recent }: { history: History; busy: boolean; more: () => void; recent?: boolean }) {
   const changes = (e: HistoryEntry) =>
     (['unshielded', 'shielded'] as const).flatMap((kind) =>
       Object.entries(e[kind]).map(([token, v]) => ({
@@ -710,16 +876,28 @@ function Activity({ history, busy, more }: { history: History; busy: boolean; mo
     );
   return (
     <section>
-      <h2>Activity</h2>
+      {recent && (
+        <div className="section-head">
+          <h2>Recent activity</h2>
+          <a className="link" href="#activity">
+            View all
+          </a>
+        </div>
+      )}
       {history.entries.length === 0 && <p className="muted">No transactions yet.</p>}
-      {history.entries.map((e) => {
+      {(recent ? history.entries.slice(0, 3) : history.entries).map((e) => {
         const c = changes(e);
+        const sent = c.some((x) => x.out);
+        const bad = e.status === 'failure' || e.status === 'rejected';
         const label =
-          e.status === 'pending' ? 'Pending' : e.status === 'rejected' ? 'Rejected' : e.status === 'failure' ? 'Failed' : c.some((x) => x.out) ? 'Sent' : c.length ? 'Received' : 'No balance change';
+          e.status === 'pending' ? 'Pending' : e.status === 'rejected' ? 'Rejected' : e.status === 'failure' ? 'Failed' : sent ? 'Sent' : c.length ? 'Received' : 'No balance change';
         return (
           <div key={e.hash} className="item">
-            <span>
-              <strong className={e.status === 'failure' || e.status === 'rejected' ? 'error' : ''}>{label}</strong>
+            <span className={`entry-icon ${bad ? 'bad' : sent ? '' : c.length ? 'in' : ''}`} aria-hidden="true">
+              <Icon name={bad ? 'warning' : e.status === 'pending' ? 'activity' : sent ? 'send' : 'receive'} className="icon-sm" />
+            </span>
+            <span className="grow">
+              <strong className={bad ? 'error' : ''}>{label}</strong>
               <span className="muted small"> {e.at ? new Date(e.at).toLocaleString() : ''}</span>
               <br />
               <span className="mono small muted" title={e.hash}>
@@ -739,7 +917,7 @@ function Activity({ history, busy, more }: { history: History; busy: boolean; mo
           </div>
         );
       })}
-      {history.entries.length < history.total && (
+      {!recent && history.entries.length < history.total && (
         <button disabled={busy} onClick={more}>
           More
         </button>
@@ -769,14 +947,14 @@ function Settings({ busy, options, run, refresh }: { busy: boolean; options: Syn
     <section>
       <h2>Settings</h2>
       <form onSubmit={save}>
-        <label className="radio">
+        <label className="check">
           <input type="checkbox" checked={draft.shieldedFast} onChange={(e) => setDraft({ ...draft, shieldedFast: e.target.checked })} /> Fast shielded sync
           (the indexer receives your viewing key)
         </label>
-        <div className="row">
+        <div className="segmented">
           {(['browser', 'server'] as const).map((s) => (
-            <label key={s} className="radio">
-              <input type="radio" name="proving" checked={draft.provingStrategy === s} onChange={() => setDraft({ ...draft, provingStrategy: s })} />{' '}
+            <label key={s}>
+              <input type="radio" name="proving" checked={draft.provingStrategy === s} onChange={() => setDraft({ ...draft, provingStrategy: s })} />
               {s === 'browser' ? 'Prove in MetaMask' : 'Proof server'}
             </label>
           ))}

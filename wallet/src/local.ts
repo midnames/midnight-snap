@@ -26,10 +26,14 @@ export function useLocal<T>(key: string, fallback: T) {
 }
 
 export type Theme = 'system' | 'light' | 'dark';
+// The page always has a data-theme. For 'system' it follows the OS setting, also when the OS setting changes.
+const systemDark = matchMedia('(prefers-color-scheme: dark)');
+let chosen: Theme = 'system';
 export const applyTheme = (theme: Theme) => {
-  if (theme === 'system') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = theme;
+  chosen = theme;
+  document.documentElement.dataset.theme = theme === 'system' ? (systemDark.matches ? 'dark' : 'light') : theme;
 };
+systemDark.addEventListener('change', () => applyTheme(chosen));
 applyTheme(read<Theme>('theme', 'system'));
 
 /** A saved address. `kind` comes from the address prefix. */
